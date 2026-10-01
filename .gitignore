@@ -1,0 +1,37 @@
+# =========================================================
+#  Datos de entrada (PII) - NUNCA subir
+# =========================================================
+Empleados*.txt
+Empleados*.csv
+Empleados*.xlsx
+*.env
+
+# =========================================================
+#  Salidas / reportes generados (contienen PII)
+# =========================================================
+UsuariosRetiradosDTU/salidas/*
+!UsuariosRetiradosDTU/salidas/.gitkeep
+UsuariosRetiradosDTU/logs/*
+!UsuariosRetiradosDTU/logs/.gitkeep
+
+# Reportes, por si se generan en cualquier ubicacion
+Usuarios Retirados*.xlsx
+Usuarios Retirados*.tsv
+Usuarios Retirados*.csv
+Usuarios Retirados DTU al*.txt
+*.bak.json
+
+# =========================================================
+#  Estado local de la aplicacion
+# =========================================================
+UsuariosRetiradosDTU/app/config.json
+
+# =========================================================
+#  Sistema / editor
+# =========================================================
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+.vscode/
+.idea/
