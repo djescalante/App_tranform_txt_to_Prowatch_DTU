@@ -11,6 +11,7 @@ Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y gener
 - **Destino: Windows PowerShell 5.1** (el server no tiene PS7). El código debe seguir siendo 5.1-compatible; no usar sintaxis solo de PS7.
 - La máquina de desarrollo sí tiene PS7 (`pwsh`). **Probar siempre con `powershell.exe`**, no `pwsh`.
 - WinForms requiere Desktop Experience (no corre en Server Core).
+- **Mark-of-the-Web**: si la carpeta viene de un ZIP descargado, `EPPlus.dll` queda con `Zone.Identifier` y .NET no lo carga (`HRESULT 0x80131515`); `ImportExcel` no importa y `Export-Excel` no existe. Mitigado: `Iniciar.cmd` y `Import-ImportExcelModule` llaman `Unblock-File` sobre `lib\`. Nunca asumir que el archivo está desbloqueado en una máquina nueva.
 
 ## Archivo de entrada (quirks críticos)
 - `Empleados.txt` (~165 MB, ~203.715 filas) es **CSV por comas, con encabezado de 78 columnas, codificación Windows-1252** (sin BOM). Leerlo como UTF-8 rompe los acentos.

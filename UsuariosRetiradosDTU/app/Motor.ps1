@@ -20,6 +20,15 @@ function Import-ImportExcelModule {
     $manifest = Get-ChildItem -Path $LibRoot -Recurse -Filter 'ImportExcel.psd1' -ErrorAction SilentlyContinue |
                 Sort-Object FullName -Descending | Select-Object -First 1
     if (-not $manifest) { throw "No se encontro el modulo ImportExcel en '$LibRoot'." }
+
+    # Mark-of-the-Web: .NET no carga ensamblados (EPPlus.dll) si el archivo viene de
+    # la zona Internet (HRESULT 0x80131515). Quitar el stream Zone.Identifier antes de importar.
+    try {
+        Get-ChildItem -LiteralPath $LibRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Unblock-File -ErrorAction SilentlyContinue
+    }
+    catch { }
+
     Import-Module $manifest.FullName -Force -ErrorAction Stop
     return $manifest.FullName
 }

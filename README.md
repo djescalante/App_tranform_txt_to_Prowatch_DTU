@@ -91,6 +91,28 @@ abre con doble clic. No necesita Excel ni acceso a internet.
 
 ---
 
+## Solución de problemas
+
+### `no se pudo cargar ImportExcel: EPPlus.dll ... Operación no admitida (HRESULT: 0x80131515)`
+
+Ocurre cuando la carpeta se **extrajo de un ZIP descargado o copió desde internet**: Windows
+marca los archivos con la "Marca de la Web" (`Zone.Identifier`) y .NET **se niega a cargar
+ensamblados de la zona Internet** (`0x80131515`). Como `EPPlus.dll` está en
+`RequiredAssemblies`, el módulo no carga y `Export-Excel` "no se reconoce".
+
+**No requiere hacer nada**: `Iniciar.cmd` desbloquea automáticamente `lib\` y `app\`
+(`Unblock-File`) antes de abrir la GUI, y `Motor.ps1` lo hace también al importar el módulo
+(cubre el uso por CLI). Si querés forzarlo manualmente:
+
+```powershell
+Get-ChildItem -Path .\UsuariosRetiradosDTU -Recurse -File | Unblock-File
+```
+
+> Prevención: antes de comprimir/distribuir, extraé con `Expand-Archive`/7-Zip en lugar de
+> "Extraer todo" del Explorador, o desbloqueá el ZIP en *Propiedades → Desbloquear*.
+
+---
+
 ## Uso
 
 1. **Examinar…** y seleccionar `Empleados.txt`. La app valida la estructura, cuenta filas y
