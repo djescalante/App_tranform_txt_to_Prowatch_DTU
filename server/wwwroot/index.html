@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuarios Retirados DTU - Plataforma Empresarial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- SCREEN 1: LOGIN -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <div class="brand-icon" style="margin: 0 auto 1rem; width: 48px; height: 48px;">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg>
+        </div>
+        <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">Usuarios Retirados DTU</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Honeywell ProWatch Integration Server</p>
+      </div>
+
+      <form id="form-login">
+        <div class="form-group">
+          <label class="form-label" for="login-username">Usuario</label>
+          <input type="text" id="login-username" class="form-control" placeholder="admin u operador1..." required autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="login-password">Contraseña</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+        </div>
+        <button type="submit" id="btn-login-submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+          Ingresar al Sistema
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: MAIN APPLICATION -->
+  <div id="app-screen" style="display: none;">
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg>
+        </div>
+        <div>
+          <span class="brand-title">Usuarios Retirados</span>
+          <span class="brand-badge">ProWatch DTU</span>
+        </div>
+      </div>
+
+      <nav class="nav-container">
+        <button class="nav-tab active" data-tab="dashboard">
+          <span>📊</span> Dashboard
+        </button>
+        <button class="nav-tab" data-tab="proceso">
+          <span>⚡</span> Nuevo Proceso
+        </button>
+        <button class="nav-tab" data-tab="historial">
+          <span>📁</span> Historial & Descargas
+        </button>
+        <button class="nav-tab" data-tab="admin" id="tab-btn-admin" style="display: none;">
+          <span>⚙</span> Administración
+        </button>
+      </nav>
+
+      <div class="user-profile-bar">
+        <div class="user-tag">
+          <span id="nav-user-fullname" style="font-weight: 600;">Usuario</span>
+          <span id="nav-user-role" class="role-badge operator">Operador</span>
+        </div>
+        <button id="btn-logout" class="btn-logout">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-main">
+
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-pane active">
+        <!-- Padron Monitor Card -->
+        <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.6));">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+            <div>
+              <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 0.25rem;">Origen de Datos de Red</div>
+              <h2 style="font-size: 1.25rem; font-weight: 700;">Estado del Padrón Maestro (Empleados.txt)</h2>
+            </div>
+            <span id="padron-status-badge" class="status-pill warning">Verificando...</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; padding-top: 0.5rem; border-top: 1px solid var(--border-subtle);">
+            <div>
+              <div class="card-desc">Última Modificación en Servidor</div>
+              <div id="padron-mtime" style="font-weight: 600; font-size: 1rem;">--</div>
+            </div>
+            <div>
+              <div class="card-desc">Tamaño & Estructura</div>
+              <div id="padron-size" style="font-weight: 600; font-size: 1rem;">--</div>
+            </div>
+            <div>
+              <div class="card-desc">Fecha Sugerida de Evento</div>
+              <div id="padron-suggested-date" style="font-weight: 600; font-size: 1rem; color: var(--primary);">--</div>
+            </div>
+          </div>
+          <div style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            Ruta: <span id="padron-path">--</span>
+          </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="grid-cols-3">
+          <div class="card">
+            <div class="card-title">Retiros Procesados Hoy</div>
+            <div id="kpi-today-count" class="card-value" style="color: #38bdf8;">0</div>
+            <div class="card-desc">Suma de registros afectados en la fecha actual</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Procesos Registrados</div>
+            <div id="kpi-total-jobs" class="card-value" style="color: #a5b4fc;">0</div>
+            <div class="card-desc">Histórico en base de datos SQLite</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Salidas Configuradas</div>
+            <div class="card-value" style="font-size: 1.25rem; font-weight: 600; color: #6ee7b7; padding-top: 0.5rem;">
+              TXT DTU + XLSX
+            </div>
+            <div class="card-desc">Honeywell ProWatch compatible</div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Table -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom: 1rem;">
+            <span>Últimos Procesos Ejecutados</span>
+            <button class="btn btn-sm btn-secondary" onclick="switchTab('historial')">Ver Historial Completo →</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha Proceso</th>
+                  <th>Fecha Evento</th>
+                  <th>Sociedades</th>
+                  <th>Coincidencias</th>
+                  <th>Estado</th>
+                  <th>Descargas</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-recent-jobs">
+                <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-dim);">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: NUEVO PROCESO -->
+      <section id="tab-proceso" class="tab-pane">
+        <div class="card">
+          <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Generación de Insumos ProWatch DTU</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+            Configure los filtros y revise la vista previa antes de generar los archivos.
+          </p>
+
+          <!-- Filtro Fecha -->
+          <div class="form-group">
+            <label class="form-label">Fecha del Evento de Retiro</label>
+            <div style="display: flex; gap: 0.75rem; align-items: center; max-width: 480px;">
+              <input type="date" id="input-fecha-evento" class="form-control" style="max-width: 220px;">
+              <button type="button" id="btn-date-suggested" class="btn btn-sm btn-secondary">Usar Sugerida</button>
+              <button type="button" id="btn-date-today" class="btn btn-sm btn-secondary">Hoy</button>
+            </div>
+            <div class="card-desc" style="margin-top: 0.4rem;">
+              Por defecto se toma la fecha de modificación del padrón menos 1 día.
+            </div>
+          </div>
+
+          <!-- Filtro Estados -->
+          <div class="form-group">
+            <label class="form-label">Estados de Empleado (Marque uno o varios)</label>
+            <div id="chips-estados" class="chips-container"></div>
+            <div class="card-desc" style="margin-top: 0.4rem;">
+              "Con terminación de contrato" evalúa automáticamente variantes con y sin tilde.
+            </div>
+          </div>
+
+          <!-- Filtro Sociedades -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 600px;">
+              <label class="form-label" style="margin-bottom: 0;">Sociedades (Obligatorio)</label>
+              <div style="display: flex; gap: 0.4rem;">
+                <button type="button" id="btn-soc-all" class="btn btn-sm btn-secondary">Todas</button>
+                <button type="button" id="btn-soc-none" class="btn btn-sm btn-secondary">Ninguna</button>
+              </div>
+            </div>
+            <div id="chips-sociedades" class="chips-container"></div>
+          </div>
+
+          <!-- Formatos de Salida -->
+          <div class="form-group" style="padding-top: 0.75rem; border-top: 1px solid var(--border-subtle);">
+            <label class="form-label">Formatos de Salida a Generar</label>
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chk-opt-dtu" checked> <strong>TXT DTU</strong> (Insumo obligatorio ProWatch)
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chk-opt-xlsx" checked> <strong>XLSX</strong> (Excel con formato y autoajuste)
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="chk-opt-tsv"> <strong>TSV</strong> (Tabulado con encabezado)
+              </label>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+            <button type="button" id="btn-preview" class="btn btn-secondary">
+              👁 Vista Previa
+            </button>
+            <button type="button" id="btn-process" class="btn btn-primary">
+              ⚡ Procesar y Exportar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: HISTORIAL & DESCARGAS -->
+      <section id="tab-historial" class="tab-pane">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="font-size: 1.25rem; font-weight: 700;">Historial de Procesamiento y Descargas</h2>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">
+                Registro histórico persistente de todas las ejecuciones y descargas directas.
+              </p>
+            </div>
+            <div style="max-width: 300px; width: 100%;">
+              <input type="text" id="input-search-jobs" class="form-control" placeholder="Buscar por usuario o fecha...">
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha/Hora Proceso</th>
+                  <th>Fecha Evento</th>
+                  <th>Sociedades</th>
+                  <th>Filas</th>
+                  <th>Usuario</th>
+                  <th>Estado</th>
+                  <th>Descargas Disponibles</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-jobs">
+                <tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-dim);">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: ADMINISTRACIÓN (ADMIN ONLY) -->
+      <section id="tab-admin" class="tab-pane">
+        <div class="card" style="margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h2 style="font-size: 1.25rem; font-weight: 700;">Gestión de Usuarios</h2>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Administración de analistas operadores y administradores del sistema.</p>
+            </div>
+            <button id="btn-admin-new-user" class="btn btn-primary btn-sm">+ Nuevo Usuario</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Usuario</th>
+                  <th>Nombre Completo</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th>Último Acceso</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-admin-users"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Rutas del Servidor</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Configuración de ubicación del padrón maestro y destino de salidas.</p>
+          <div class="form-group">
+            <label class="form-label">Ruta del Padrón (Empleados.txt)</label>
+            <input type="text" id="admin-cfg-input" class="form-control" style="font-family: monospace;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Carpeta Destino de Salidas</label>
+            <input type="text" id="admin-cfg-output" class="form-control" style="font-family: monospace;">
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: VISTA PREVIA -->
+  <div id="modal-preview" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Vista Previa de Coincidencias</h3>
+          <p id="preview-modal-count" style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem;">--</p>
+        </div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Documento</th>
+                <th>Sociedad</th>
+                <th>Fecha Evento</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-preview"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-cancel">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN DE PROCESO -->
+  <div id="modal-confirm-process" class="modal-overlay">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Exportación</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+          <div style="font-size: 0.85rem; color: var(--text-dim);">Total de Filas Coincidentes</div>
+          <div id="confirm-count" style="font-size: 2.5rem; font-weight: 800; color: #38bdf8;">--</div>
+        </div>
+        <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; font-size: 0.85rem;">
+          <div style="margin-bottom: 0.5rem;"><strong>Fecha Evento:</strong> <span id="confirm-date">--</span></div>
+          <div style="margin-bottom: 0.5rem;"><strong>Estados:</strong> <span id="confirm-estados">--</span></div>
+          <div style="margin-bottom: 0.5rem;"><strong>Sociedades:</strong> <span id="confirm-sociedades">--</span></div>
+          <div><strong>Formatos:</strong> <span id="confirm-formats">--</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+        <button id="btn-confirm-process" class="btn btn-primary">Confirmar y Exportar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: USUARIO (ADMIN) -->
+  <div id="modal-user" class="modal-overlay">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="modal-user-title" class="modal-title">Usuario</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="form-user-modal">
+        <div class="modal-body">
+          <input type="hidden" id="modal-user-id">
+          <div class="form-group">
+            <label class="form-label">Nombre de Usuario</label>
+            <input type="text" id="modal-user-username" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nombre Completo</label>
+            <input type="text" id="modal-user-fullname" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rol</label>
+            <select id="modal-user-role" class="form-control">
+              <option value="Operator">Operador</option>
+              <option value="Admin">Administrador</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña</label>
+            <input type="password" id="modal-user-password" class="form-control" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+              <input type="checkbox" id="modal-user-active" checked> Usuario Activo
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
