@@ -98,6 +98,9 @@ si se agregan, actualizar la CSP o el navegador los bloqueará.
 
 ## Despliegue como servicio Windows
 
+Los instaladores de .NET 10 para el servidor están en `prerequisitos\` (ver
+`prerequisitos\README.md` con links, checksums y checklist de despliegue).
+
 ```powershell
 # Ejecutar en PowerShell como Administrador
 .\Instalar-Servicio.ps1 -Action Install -Port 5001

@@ -43,6 +43,7 @@ Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y gener
 - `server\README.md` — arquitectura, API, configuración y despliegue de la app web.
 - `server\Iniciar-Servidor.cmd` — lanzador web en Development (`https://localhost:5001`, TLS 1.3); usa el SDK x64 explícito y lee la contraseña del PFX desde `server\certs\pfx-password.txt`.
 - `server\Instalar-Servicio.ps1` — publica y registra el servicio Windows (escribe `Jwt__Secret`, `Kestrel__Endpoints__Https__*` en el registro del servicio).
+- `prerequisitos\` — instaladores .NET 10 para el servidor (binarios ignorados por git; `prerequisitos\README.md` con links, checksums y checklist de despliegue **sí** se versiona).
 
 ## App web (server/)
 - **Build/run**: usar el SDK x64 `C:\Program Files\dotnet\dotnet.exe`; el `dotnet` x86 que suele aparecer primero en el PATH **no tiene SDK** y `dotnet run` falla con "No .NET SDKs were found". `Iniciar-Servidor.cmd` ya lo resuelve.

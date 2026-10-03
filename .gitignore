@@ -27,6 +27,13 @@ Usuarios Retirados DTU al*.txt
 UsuariosRetiradosDTU/app/config.json
 
 # =========================================================
+#  Prerequisitos de despliegue (binarios grandes, no versionar)
+#  El README.md con los links SI se versiona.
+# =========================================================
+prerequisitos/*
+!prerequisitos/*.md
+
+# =========================================================
 #  Certificados TLS locales (nunca subir)
 # =========================================================
 server/certs/
