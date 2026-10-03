@@ -27,6 +27,11 @@ Usuarios Retirados DTU al*.txt
 UsuariosRetiradosDTU/app/config.json
 
 # =========================================================
+#  Certificados TLS locales (nunca subir)
+# =========================================================
+server/certs/
+
+# =========================================================
 #  Sistema / editor
 # =========================================================
 Thumbs.db
@@ -35,6 +40,7 @@ desktop.ini
 *.swp
 .vscode/
 .idea/
+.playwright-mcp/
 
 # =========================================================
 #  .NET & Base de datos local

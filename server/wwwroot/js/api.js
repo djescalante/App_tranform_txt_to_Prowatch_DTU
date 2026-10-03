@@ -108,22 +108,51 @@ class ApiClient {
   }
 
   getDownloadUrl(jobId, format) {
-    return `${API_BASE}/jobs/${jobId}/download/${format}?token=${encodeURIComponent(this.token || '')}`;
+    return `${API_BASE}/jobs/${jobId}/download/${format}`;
   }
 
-  downloadJobFile(jobId, format, defaultFileName) {
-    const downloadUrl = `${API_BASE}/jobs/${jobId}/download/${format}?token=${encodeURIComponent(this.token || '')}`;
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    if (defaultFileName) {
-      a.setAttribute('download', defaultFileName);
+  async downloadJobFile(jobId, format, defaultFileName) {
+    const response = await fetch(`${API_BASE}/jobs/${jobId}/download/${format}?_=${Date.now()}`, {
+      headers: this.token ? { 'Authorization': `Bearer ${this.token}` } : {}
+    });
+
+    if (response.status === 401) {
+      this.setToken(null);
+      window.dispatchEvent(new CustomEvent('dtu:auth-error'));
+      throw new Error('Sesión expirada: vuelva a iniciar sesión.');
     }
+
+    if (!response.ok) {
+      let errMessage = `Error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errMessage = errorData.message || errMessage;
+      } catch (e) { /* respuesta sin JSON */ }
+      throw new Error(errMessage);
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const asciiMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const fileName = defaultFileName
+      || (utf8Match ? decodeURIComponent(utf8Match[1]) : null)
+      || (asciiMatch ? asciiMatch[1] : null)
+      || `${format}_${jobId}`;
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.setAttribute('download', fileName);
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
       if (a.parentNode) a.parentNode.removeChild(a);
+      URL.revokeObjectURL(url);
     }, 2000);
+
+    return fileName;
   }
 
   // Admin
@@ -147,6 +176,12 @@ class ApiClient {
 
   async getConfig() {
     return await this.request('/admin/config');
+  }
+
+  async clearJobs() {
+    return await this.request('/admin/jobs/clear', {
+      method: 'POST'
+    });
   }
 
   async updateConfig(configs) {

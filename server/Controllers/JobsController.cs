@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UsuariosRetirados.Server.Data;
 using UsuariosRetirados.Server.DTOs;
+using UsuariosRetirados.Server.Services;
 
 namespace UsuariosRetirados.Server.Controllers;
 
@@ -12,34 +13,41 @@ namespace UsuariosRetirados.Server.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
 
-    public JobsController(AppDbContext db)
+    public JobsController(AppDbContext db, IWebHostEnvironment env, IConfiguration config)
     {
         _db = db;
+        _env = env;
+        _config = config;
     }
 
     [HttpGet]
     public async Task<ActionResult<List<JobDto>>> GetJobs([FromQuery] int limit = 50)
     {
-        var jobs = await _db.ProcessingJobs
-            .OrderByDescending(j => j.CreatedAt)
+        var jobs = await (from j in _db.ProcessingJobs
+                          join u in _db.Users on j.CreatedByUsername equals u.Username into users
+                          from u in users.DefaultIfEmpty()
+                          orderby j.CreatedAt descending
+                          select new JobDto(
+                              j.Id,
+                              j.CreatedAt,
+                              j.CreatedByUsername,
+                              u != null ? u.FullName : null,
+                              j.SourceFileName,
+                              j.EventDate,
+                              j.SelectedStates,
+                              j.SelectedSocieties,
+                              j.TotalMatchedRows,
+                              j.ExecutionDurationMs,
+                              j.DtuFileName,
+                              j.XlsxFileName,
+                              j.TsvFileName,
+                              j.Status,
+                              j.ErrorMessage
+                          ))
             .Take(limit > 0 ? limit : 50)
-            .Select(j => new JobDto(
-                j.Id,
-                j.CreatedAt,
-                j.CreatedByUsername,
-                j.SourceFileName,
-                j.EventDate,
-                j.SelectedStates,
-                j.SelectedSocieties,
-                j.TotalMatchedRows,
-                j.ExecutionDurationMs,
-                j.DtuFileName,
-                j.XlsxFileName,
-                j.TsvFileName,
-                j.Status,
-                j.ErrorMessage
-            ))
             .ToListAsync();
 
         return Ok(jobs);
@@ -65,20 +73,14 @@ public class JobsController : ControllerBase
         }
 
         var cfg = await _db.AppConfigs.FirstOrDefaultAsync(c => c.Key == "OutputDir");
-        string outDir = cfg?.Value ?? @"E:\CarpetaTrabajoIA\empleados\UsuariosRetiradosDTU\salidas";
-        string filePath = Path.Combine(outDir, fileName);
+        string outDir = cfg?.Value is { Length: > 0 } value
+            ? value
+            : _config["AppPaths:OutputDir"] ?? AppPaths.OutputRelative;
 
-        if (!System.IO.File.Exists(filePath))
+        string? filePath = AppPaths.FindExistingOutputFile(outDir, fileName, _env.ContentRootPath);
+        if (filePath == null)
         {
-            var altPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "UsuariosRetiradosDTU", "salidas", fileName);
-            if (System.IO.File.Exists(altPath))
-            {
-                filePath = altPath;
-            }
-            else
-            {
-                return NotFound(new { message = $"El archivo físico '{fileName}' ya no existe en el disco." });
-            }
+            return NotFound(new { message = $"El archivo físico '{fileName}' ya no existe en el disco." });
         }
 
         string contentType = format.ToLower() switch

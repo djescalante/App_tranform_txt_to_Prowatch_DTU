@@ -1,14 +1,23 @@
 using System.Diagnostics;
 using System.Text;
+using Microsoft.VisualBasic.FileIO;
 using UsuariosRetirados.Server.DTOs;
 
 namespace UsuariosRetirados.Server.Services;
+
+public record FilterResult(
+    int TotalRows,
+    int MalformedCount,
+    int MatchedCount,
+    List<EmpleadoRowDto> Rows,
+    long ElapsedMs
+);
 
 public interface ICsvStreamingEngine
 {
     Encoding GetWindows1252Encoding();
     string[]? ReadHeader(string filePath);
-    (int TotalRows, int MatchedCount, List<EmpleadoRowDto> SampleRows, long ElapsedMs) FilterRows(
+    FilterResult FilterRows(
         string filePath,
         string? fechaEvento,
         IEnumerable<string>? sociedades,
@@ -28,20 +37,34 @@ public class CsvStreamingEngine : ICsvStreamingEngine
         return Encoding.GetEncoding("Windows-1252");
     }
 
+    /// <summary>
+    /// Creates a TextFieldParser configured exactly like Motor.ps1 (New-EmpleadoParser):
+    /// delimited by comma, quoted fields honored, no whitespace trimming.
+    /// </summary>
+    private static TextFieldParser NewParser(string filePath, Encoding encoding)
+    {
+        var parser = new TextFieldParser(filePath, encoding)
+        {
+            TextFieldType = FieldType.Delimited,
+            HasFieldsEnclosedInQuotes = true,
+            TrimWhiteSpace = false
+        };
+        parser.SetDelimiters(",");
+        return parser;
+    }
+
     public string[]? ReadHeader(string filePath)
     {
         if (!File.Exists(filePath)) return null;
 
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 65536);
-        using var reader = new StreamReader(fs, GetWindows1252Encoding());
+        using var parser = NewParser(filePath, GetWindows1252Encoding());
+        if (parser.EndOfData) return null;
 
-        var line = reader.ReadLine();
-        if (line == null) return null;
-
-        return ParseCsvLine(line).ToArray();
+        var fields = parser.ReadFields();
+        return fields?.Select(f => f.Trim()).ToArray();
     }
 
-    public (int TotalRows, int MatchedCount, List<EmpleadoRowDto> SampleRows, long ElapsedMs) FilterRows(
+    public FilterResult FilterRows(
         string filePath,
         string? fechaEvento,
         IEnumerable<string>? sociedades,
@@ -53,7 +76,7 @@ public class CsvStreamingEngine : ICsvStreamingEngine
 
         if (!File.Exists(filePath))
         {
-            return (0, 0, matchedRows, 0);
+            return new FilterResult(0, 0, 0, matchedRows, 0);
         }
 
         // Normalize states (expand 'Con terminación de contrato' to both with and without accent)
@@ -93,16 +116,18 @@ public class CsvStreamingEngine : ICsvStreamingEngine
 
         string? fechaFiltro = string.IsNullOrWhiteSpace(fechaEvento) ? null : fechaEvento.Trim();
 
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 131072);
-        using var reader = new StreamReader(fs, GetWindows1252Encoding());
+        using var parser = NewParser(filePath, GetWindows1252Encoding());
 
-        var headerLine = reader.ReadLine();
-        if (headerLine == null) return (0, 0, matchedRows, sw.ElapsedMilliseconds);
+        var headerFields = parser.ReadFields();
+        if (headerFields == null)
+        {
+            sw.Stop();
+            return new FilterResult(0, 0, 0, matchedRows, sw.ElapsedMilliseconds);
+        }
 
-        var headerFields = ParseCsvLine(headerLine);
         int colEstado = -1, colDoc = -1, colSoc = -1, colFecha = -1;
 
-        for (int i = 0; i < headerFields.Count; i++)
+        for (int i = 0; i < headerFields.Length; i++)
         {
             var name = headerFields[i].Trim();
             if (colEstado == -1 && string.Equals(name, "ESTADO", StringComparison.OrdinalIgnoreCase)) colEstado = i;
@@ -118,16 +143,25 @@ public class CsvStreamingEngine : ICsvStreamingEngine
 
         int maxColIndex = Math.Max(Math.Max(colEstado, colDoc), Math.Max(colSoc, colFecha));
         int totalRows = 0;
+        int malformed = 0;
         int matchedCount = 0;
 
-        string? line;
-        while ((line = reader.ReadLine()) != null)
+        while (!parser.EndOfData)
         {
-            totalRows++;
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            string[]? fields;
+            try
+            {
+                fields = parser.ReadFields();
+            }
+            catch (MalformedLineException)
+            {
+                malformed++;
+                continue;
+            }
 
-            var fields = ParseCsvLine(line);
-            if (fields.Count <= maxColIndex) continue;
+            if (fields == null) continue;
+            totalRows++;
+            if (fields.Length <= maxColIndex) continue;
 
             string estado = fields[colEstado].Trim();
             string soc = fields[colSoc].Trim();
@@ -138,59 +172,14 @@ public class CsvStreamingEngine : ICsvStreamingEngine
             if (fechaFiltro != null && !string.Equals(fecha, fechaFiltro, StringComparison.OrdinalIgnoreCase)) continue;
 
             matchedCount++;
-            string doc = fields[colDoc].Trim();
 
             if (maxCollect <= 0 || matchedRows.Count < maxCollect)
             {
-                matchedRows.Add(new EmpleadoRowDto(estado, doc, soc, fecha));
+                matchedRows.Add(new EmpleadoRowDto(estado, fields[colDoc].Trim(), soc, fecha));
             }
         }
 
         sw.Stop();
-        return (totalRows, matchedCount, matchedRows, sw.ElapsedMilliseconds);
-    }
-
-    /// <summary>
-    /// Fast CSV line parser that respects quoted commas and quotes escaping.
-    /// Gracefully recovers from unbalanced quotes.
-    /// </summary>
-    public static List<string> ParseCsvLine(string line)
-    {
-        var result = new List<string>(80);
-        if (string.IsNullOrEmpty(line)) return result;
-
-        var sb = new StringBuilder(64);
-        bool inQuotes = false;
-        int length = line.Length;
-
-        for (int i = 0; i < length; i++)
-        {
-            char c = line[i];
-
-            if (c == '"')
-            {
-                if (inQuotes && i + 1 < length && line[i + 1] == '"')
-                {
-                    sb.Append('"');
-                    i++; // skip escaped quote
-                }
-                else
-                {
-                    inQuotes = !inQuotes;
-                }
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                result.Add(sb.ToString());
-                sb.Clear();
-            }
-            else
-            {
-                sb.Append(c);
-            }
-        }
-
-        result.Add(sb.ToString());
-        return result;
+        return new FilterResult(totalRows, malformed, matchedCount, matchedRows, sw.ElapsedMilliseconds);
     }
 }

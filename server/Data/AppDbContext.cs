@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using UsuariosRetirados.Server.Models;
+using UsuariosRetirados.Server.Services;
 
 namespace UsuariosRetirados.Server.Data;
 
@@ -28,7 +29,7 @@ public class AppDbContext : DbContext
         });
     }
 
-    public static async Task SeedInitialDataAsync(AppDbContext db)
+    public static async Task SeedInitialDataAsync(AppDbContext db, IConfiguration? config = null)
     {
         await db.Database.EnsureCreatedAsync();
 
@@ -62,23 +63,33 @@ public class AppDbContext : DbContext
             await db.SaveChangesAsync();
         }
 
-        // Default configs
+        // Default configs (configurable via appsettings AppPaths:*; never hardcode machine paths)
         if (!await db.AppConfigs.AnyAsync(c => c.Key == "InputPath"))
         {
+            var configured = config?["AppPaths:InputPath"];
+            var value = string.IsNullOrWhiteSpace(configured)
+                ? AppPaths.FindUpward("Empleados.txt") ?? string.Empty
+                : configured;
+
             db.AppConfigs.Add(new AppConfig
             {
                 Key = "InputPath",
-                Value = @"E:\CarpetaTrabajoIA\empleados\Empleados.txt",
+                Value = value,
                 UpdatedAt = DateTime.UtcNow
             });
         }
 
         if (!await db.AppConfigs.AnyAsync(c => c.Key == "OutputDir"))
         {
+            var configured = config?["AppPaths:OutputDir"];
+            var value = string.IsNullOrWhiteSpace(configured)
+                ? AppPaths.FindUpward(AppPaths.OutputRelative) ?? string.Empty
+                : configured;
+
             db.AppConfigs.Add(new AppConfig
             {
                 Key = "OutputDir",
-                Value = @"E:\CarpetaTrabajoIA\empleados\UsuariosRetiradosDTU\salidas",
+                Value = value,
                 UpdatedAt = DateTime.UtcNow
             });
         }

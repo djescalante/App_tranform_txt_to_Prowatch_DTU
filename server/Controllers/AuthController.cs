@@ -69,6 +69,16 @@ public class AuthController : ControllerBase
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username);
         if (user == null) return NotFound();
 
+        if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 8)
+        {
+            return BadRequest(new { message = "La nueva contraseña debe tener al menos 8 caracteres." });
+        }
+
+        if (req.NewPassword == req.CurrentPassword)
+        {
+            return BadRequest(new { message = "La nueva contraseña debe ser diferente a la actual." });
+        }
+
         if (!BCrypt.Net.BCrypt.Verify(req.CurrentPassword, user.PasswordHash))
         {
             return BadRequest(new { message = "La contraseña actual no es correcta." });

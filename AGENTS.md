@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y generar insumos para ProWatch DTU. Todo el código es PowerShell + WinForms.
+Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y generar insumos para ProWatch DTU. La herramienta original es PowerShell + WinForms; además hay una app web ASP.NET Core en `server/` que replica el motor con login, historial y descargas.
 
 ## Repo y datos sensibles
 - Es un repo git con raíz en esta carpeta (`empleados/`). El `.gitignore` excluye los insumos **PII** y los artefactos generados: `Empleados*.txt|csv|xlsx`, `Usuarios Retirados*` (xlsx/tsv/csv/txt), `UsuariosRetiradosDTU/salidas/*` (salvo `.gitkeep`), `UsuariosRetiradosDTU/logs/*`, `UsuariosRetiradosDTU/app/config.json` y `*.bak.json`.
@@ -39,6 +39,22 @@ Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y gener
 - `UsuariosRetiradosDTU\lib\ImportExcel\7.8.10\` — módulo embebido (incluye `EPPlus.dll`) para generar XLSX **sin Excel instalado**. Cargar desde `lib\`; no depender de PSGallery ni de Excel COM en el server.
 - `Usuarios-Retirados-DTU.ps1` — script piloto original (referencia, solo CLI).
 - `salidas\` y `logs\` — artefactos; `logs\` está vacío.
+- `server\` — app web ASP.NET Core 10 (API REST + SPA en `wwwroot\`) con JWT/BCrypt, historial en SQLite (`usuarios_retirados.db`, ignorada) y descargas. Convive con la GUI; no la reemplaza.
+- `server\README.md` — arquitectura, API, configuración y despliegue de la app web.
+- `server\Iniciar-Servidor.cmd` — lanzador web en Development (`https://localhost:5001`, TLS 1.3); usa el SDK x64 explícito y lee la contraseña del PFX desde `server\certs\pfx-password.txt`.
+- `server\Instalar-Servicio.ps1` — publica y registra el servicio Windows (escribe `Jwt__Secret`, `Kestrel__Endpoints__Https__*` en el registro del servicio).
+
+## App web (server/)
+- **Build/run**: usar el SDK x64 `C:\Program Files\dotnet\dotnet.exe`; el `dotnet` x86 que suele aparecer primero en el PATH **no tiene SDK** y `dotnet run` falla con "No .NET SDKs were found". `Iniciar-Servidor.cmd` ya lo resuelve.
+- **Producción exige secreto JWT**: `Jwt__Secret` (env var o variable del servicio). Sin él la app no arranca (fail-fast). En Development lo toma de `appsettings.Development.json`.
+- **Solo HTTPS / TLS 1.3**: Kestrel escucha únicamente `https://0.0.0.0:5001` con `SslProtocols=Tls13` (TLS 1.2 rechazado). El PFX vive en `server\certs\` (ignorado por git; contraseña en `pfx-password.txt` o `Kestrel__Endpoints__Https__CertPassword`). No reintroducir HTTP ni `Urls`.
+- **CSP estricto**: la SPA no debe usar handlers inline (`onclick=`) ni recursos externos (fuentes/CDN); usar `data-*` + listeners delegados. `SecurityHeadersMiddleware` aplica HSTS, CSP, nosniff, frame-deny, etc., y Kestrel oculta el header `Server`.
+- **Paridad contractual**: el TXT DTU del server debe ser **byte-idéntico** al de `Motor.ps1`. El parser es `TextFieldParser` (`CsvStreamingEngine.cs`) igual que el motor; verificar con SHA256 (fórmula y hashes de referencia en `server\README.md`). No tocar el formato DTU.
+- **Cache de escaneo**: preview y process comparten un cache en memoria de 5 min (`ScanCache.cs`) para no escanear los ~165 MB dos veces.
+- **Rutas robustas**: `AppPaths.cs` resuelve `estructura.json` y `salidas\` desde repo, `publish\` o servicio Windows; `AppPaths:*` de `appsettings.json` son solo el seed inicial (luego mandan `AppConfigs` en SQLite).
+- **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!` — cambiar en producción (mínimo 8 caracteres).
+- CORS por defecto vacío = mismo origen; `Cors:AllowedOrigins` permite lista blanca o `["*"]`.
+- Si `Instalar-Servicio.ps1` corre con PS 5.1, evitar sintaxis PS7 (`?.`, `RandomNumberGenerator::Fill`).
 
 ## Reglas de negocio (no obvias)
 - Filtro de estado por defecto `Terminated`; en el archivo también existen `Active`, `Activo`, `Latente`, `ReportNo-Show` y **dos variantes** de "Con terminación de contrato": con tilde y sin tilde. La opción visible `Con terminación de contrato` en la GUI expande a **ambas** (`$script:EstadoMapa` en la GUI).
@@ -54,5 +70,6 @@ Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y gener
   `powershell.exe -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::ParseFile('<ruta.ps1>',[ref]$null,[ref]$null)"`
 - Prueba del motor (sin GUI): dot-source `Motor.ps1`, `Import-ImportExcelModule`, y llamar `Export-UsuariosRetirados -PreviewLimit <N>` para contar sin escribir archivos.
 - Verificar que el TXT DTU siga **byte-idéntico**: comparar con `Get-FileHash <txt> -Algorithm SHA256`.
+- App web: build con SDK x64 `& "C:\Program Files\dotnet\dotnet.exe" build server\UsuariosRetirados.Server.csproj -c Release`; paridad del DTU y smoke test de API descritos en `server\README.md`.
 - No hay framework de tests; la verificación es manual con los comandos anteriores.
 - Regla de ejecución en el server: el `.cmd` usa `-ExecutionPolicy Bypass`; una GPO podría bloquearlo.

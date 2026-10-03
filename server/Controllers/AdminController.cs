@@ -38,6 +38,21 @@ public class AdminController : ControllerBase
             return BadRequest(new { message = "Nombre de usuario y contraseña son requeridos." });
         }
 
+        if (!System.Text.RegularExpressions.Regex.IsMatch(req.Username.Trim(), @"^[A-Za-z0-9._-]{3,50}$"))
+        {
+            return BadRequest(new { message = "El usuario debe tener entre 3 y 50 caracteres (letras, números, punto, guion o guion bajo)." });
+        }
+
+        if (req.Password.Length < 8)
+        {
+            return BadRequest(new { message = "La contraseña debe tener al menos 8 caracteres." });
+        }
+
+        if (string.IsNullOrWhiteSpace(req.FullName))
+        {
+            return BadRequest(new { message = "El nombre completo es requerido." });
+        }
+
         var normalizedUsername = req.Username.Trim().ToLower();
         if (await _db.Users.AnyAsync(u => u.Username.ToLower() == normalizedUsername))
         {
@@ -66,6 +81,16 @@ public class AdminController : ControllerBase
         var user = await _db.Users.FindAsync(id);
         if (user == null) return NotFound(new { message = "Usuario no encontrado." });
 
+        if (string.IsNullOrWhiteSpace(req.FullName))
+        {
+            return BadRequest(new { message = "El nombre completo es requerido." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(req.Password) && req.Password.Length < 8)
+        {
+            return BadRequest(new { message = "La contraseña debe tener al menos 8 caracteres." });
+        }
+
         user.FullName = req.FullName.Trim();
         user.Role = string.Equals(req.Role, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Operator";
         user.IsActive = req.IsActive;
@@ -77,6 +102,13 @@ public class AdminController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(new UserDto(user.Id, user.Username, user.FullName, user.Role, user.IsActive, user.CreatedAt, user.LastLoginAt));
+    }
+
+    [HttpPost("jobs/clear")]
+    public async Task<IActionResult> ClearJobs()
+    {
+        var deleted = await _db.ProcessingJobs.ExecuteDeleteAsync();
+        return Ok(new { message = $"Se eliminaron {deleted} procesos del historial.", deleted });
     }
 
     [HttpGet("config")]
@@ -91,15 +123,20 @@ public class AdminController : ControllerBase
     {
         foreach (var (key, value) in newConfigs)
         {
+            if ((key == "InputPath" || key == "OutputDir") && string.IsNullOrWhiteSpace(value))
+            {
+                return BadRequest(new { message = $"La ruta '{key}' no puede estar vacía." });
+            }
+
             var item = await _db.AppConfigs.FirstOrDefaultAsync(c => c.Key == key);
             if (item != null)
             {
-                item.Value = value;
+                item.Value = value.Trim();
                 item.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
-                _db.AppConfigs.Add(new AppConfig { Key = key, Value = value, UpdatedAt = DateTime.UtcNow });
+                _db.AppConfigs.Add(new AppConfig { Key = key, Value = value.Trim(), UpdatedAt = DateTime.UtcNow });
             }
         }
 

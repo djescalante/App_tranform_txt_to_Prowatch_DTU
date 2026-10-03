@@ -17,7 +17,10 @@ public class EmpleadosController : ControllerBase
     private readonly ICsvStreamingEngine _csvEngine;
     private readonly IExportService _exportService;
     private readonly ISchemaValidator _schemaValidator;
+    private readonly IScanCache _scanCache;
     private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
+    private readonly ILogger<EmpleadosController> _logger;
 
     private static readonly List<string> SociedadesFijas =
     [
@@ -39,27 +42,63 @@ public class EmpleadosController : ControllerBase
         ICsvStreamingEngine csvEngine,
         IExportService exportService,
         ISchemaValidator schemaValidator,
-        IWebHostEnvironment env)
+        IScanCache scanCache,
+        IWebHostEnvironment env,
+        IConfiguration config,
+        ILogger<EmpleadosController> logger)
     {
         _db = db;
         _csvEngine = csvEngine;
         _exportService = exportService;
         _schemaValidator = schemaValidator;
+        _scanCache = scanCache;
         _env = env;
+        _config = config;
+        _logger = logger;
     }
 
     private async Task<string> GetInputPathAsync()
     {
         var cfg = await _db.AppConfigs.FirstOrDefaultAsync(c => c.Key == "InputPath");
         if (cfg != null && !string.IsNullOrWhiteSpace(cfg.Value)) return cfg.Value;
-        return @"E:\CarpetaTrabajoIA\empleados\Empleados.txt";
+        return _config["AppPaths:InputPath"] ?? string.Empty;
     }
 
     private async Task<string> GetOutputDirAsync()
     {
         var cfg = await _db.AppConfigs.FirstOrDefaultAsync(c => c.Key == "OutputDir");
         if (cfg != null && !string.IsNullOrWhiteSpace(cfg.Value)) return cfg.Value;
-        return @"E:\CarpetaTrabajoIA\empleados\UsuariosRetiradosDTU\salidas";
+        return _config["AppPaths:OutputDir"] ?? AppPaths.OutputRelative;
+    }
+
+    private static string BuildScanKey(string path, string? fechaEvento, IEnumerable<string>? sociedades, IEnumerable<string>? estados)
+    {
+        string Normalize(IEnumerable<string>? values) =>
+            values == null
+                ? string.Empty
+                : string.Join(",",
+                    values.Select(v => v.Trim().ToUpperInvariant())
+                          .Where(v => v.Length > 0)
+                          .OrderBy(v => v, StringComparer.Ordinal));
+
+        var fi = new FileInfo(path);
+        long length = fi.Exists ? fi.Length : 0;
+        long ticks = fi.Exists ? fi.LastWriteTimeUtc.Ticks : 0;
+
+        return $"scan|{path.ToLowerInvariant()}|{length}|{ticks}|{(fechaEvento ?? string.Empty).Trim()}|{Normalize(sociedades)}|{Normalize(estados)}";
+    }
+
+    private FilterResult GetOrScan(string path, string? fechaEvento, IEnumerable<string>? sociedades, IEnumerable<string>? estados)
+    {
+        var key = BuildScanKey(path, fechaEvento, sociedades, estados);
+        if (_scanCache.TryGet(key, out var cached))
+        {
+            return cached;
+        }
+
+        var result = _csvEngine.FilterRows(path, fechaEvento, sociedades, estados, maxCollect: 0);
+        _scanCache.Set(key, result);
+        return result;
     }
 
     [HttpGet("info")]
@@ -97,9 +136,11 @@ public class EmpleadosController : ControllerBase
         var header = _csvEngine.ReadHeader(path);
         int totalCols = header?.Length ?? 0;
 
-        string schemaPath = Path.Combine(_env.ContentRootPath, "..", "UsuariosRetiradosDTU", "app", "estructura.json");
+        var estructuraCfg = await _db.AppConfigs.FirstOrDefaultAsync(c => c.Key == "EstructuraPath");
+        string? schemaPath = AppPaths.FindEstructuraJson(_env.ContentRootPath, estructuraCfg?.Value);
+
         var schemaRes = header != null
-            ? _schemaValidator.ValidateHeader(header, schemaPath)
+            ? _schemaValidator.ValidateHeader(header, schemaPath ?? string.Empty)
             : new SchemaValidationResult(false, true, ["No se pudo leer el encabezado."], [], [], 0, 0);
 
         var issues = new List<string>();
@@ -155,15 +196,22 @@ public class EmpleadosController : ControllerBase
             return BadRequest(new { message = $"El archivo de empleados no fue encontrado en: {path}" });
         }
 
-        var result = _csvEngine.FilterRows(
-            path,
-            req.FechaEvento,
-            req.Sociedades,
-            req.Estados,
-            maxCollect: req.Limit > 0 ? req.Limit : 100
-        );
+        try
+        {
+            var result = GetOrScan(path, req.FechaEvento, req.Sociedades, req.Estados);
+            int limit = req.Limit > 0 ? req.Limit : 100;
 
-        return Ok(new PreviewResponse(result.MatchedCount, result.SampleRows, result.ElapsedMs));
+            return Ok(new PreviewResponse(
+                result.MatchedCount,
+                result.Rows.Take(limit).ToList(),
+                result.ElapsedMs
+            ));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _logger.LogError(ex, "Fallo la vista previa del padrón {Path}", path);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = $"Error al leer el padrón: {ex.Message}" });
+        }
     }
 
     [HttpPost("process")]
@@ -193,55 +241,71 @@ public class EmpleadosController : ControllerBase
         }
 
         var fi = new FileInfo(path);
-
-        // Run full filtering
-        var result = _csvEngine.FilterRows(
-            path,
-            req.FechaEvento,
-            req.Sociedades,
-            req.Estados,
-            maxCollect: 0 // Collect all matches
-        );
-
-        // Generate files
-        var exportRes = _exportService.GenerateOutputs(
-            result.SampleRows,
-            outDir,
-            req.FechaEvento,
-            emitXlsx: req.EmitXlsx,
-            emitTsv: req.EmitTsv,
-            emitDtu: req.EmitDtu
-        );
-
-        // Record job in SQLite database
         var username = User.Identity?.Name ?? "Sistema";
-        var job = new ProcessingJob
+
+        try
         {
-            CreatedAt = DateTime.UtcNow,
-            CreatedByUsername = username,
-            SourceFileName = fi.Name,
-            SourceFileDate = fi.LastWriteTime,
-            EventDate = req.FechaEvento,
-            SelectedStates = string.Join(", ", req.Estados),
-            SelectedSocieties = string.Join(", ", req.Sociedades),
-            TotalMatchedRows = result.MatchedCount,
-            ExecutionDurationMs = result.ElapsedMs,
-            DtuFileName = exportRes.DtuFileName,
-            XlsxFileName = exportRes.XlsxFileName,
-            TsvFileName = exportRes.TsvFileName,
-            Status = "Completed"
-        };
+            var result = GetOrScan(path, req.FechaEvento, req.Sociedades, req.Estados);
 
-        _db.ProcessingJobs.Add(job);
-        await _db.SaveChangesAsync();
+            var exportRes = _exportService.GenerateOutputs(
+                result.Rows,
+                outDir,
+                req.FechaEvento,
+                emitXlsx: req.EmitXlsx,
+                emitTsv: req.EmitTsv,
+                emitDtu: req.EmitDtu
+            );
 
-        return Ok(new ProcessResponse(
-            JobId: job.Id,
-            Success: true,
-            TotalCoinciden: result.MatchedCount,
-            ElapsedMs: result.ElapsedMs,
-            FilesGenerated: exportRes.GeneratedFilePaths.Select(Path.GetFileName).ToList()!,
-            Message: $"Proceso completado exitosamente con {result.MatchedCount} registros generados en {result.ElapsedMs} ms."
-        ));
+            var job = new ProcessingJob
+            {
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUsername = username,
+                SourceFileName = fi.Name,
+                SourceFileDate = fi.LastWriteTime,
+                EventDate = req.FechaEvento,
+                SelectedStates = string.Join(", ", req.Estados),
+                SelectedSocieties = string.Join(", ", req.Sociedades),
+                TotalMatchedRows = result.MatchedCount,
+                ExecutionDurationMs = result.ElapsedMs,
+                DtuFileName = exportRes.DtuFileName,
+                XlsxFileName = exportRes.XlsxFileName,
+                TsvFileName = exportRes.TsvFileName,
+                Status = "Completed"
+            };
+
+            _db.ProcessingJobs.Add(job);
+            await _db.SaveChangesAsync();
+
+            return Ok(new ProcessResponse(
+                JobId: job.Id,
+                Success: true,
+                TotalCoinciden: result.MatchedCount,
+                ElapsedMs: result.ElapsedMs,
+                FilesGenerated: exportRes.GeneratedFilePaths.Select(Path.GetFileName).ToList()!,
+                Message: $"Proceso completado exitosamente con {result.MatchedCount} registros generados en {result.ElapsedMs} ms."
+            ));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fallo el proceso de exportación para {Path} -> {OutDir}", path, outDir);
+
+            _db.ProcessingJobs.Add(new ProcessingJob
+            {
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUsername = username,
+                SourceFileName = fi.Name,
+                SourceFileDate = fi.Exists ? fi.LastWriteTime : null,
+                EventDate = req.FechaEvento,
+                SelectedStates = string.Join(", ", req.Estados),
+                SelectedSocieties = string.Join(", ", req.Sociedades),
+                TotalMatchedRows = 0,
+                ExecutionDurationMs = 0,
+                Status = "Failed",
+                ErrorMessage = ex.Message
+            });
+            await _db.SaveChangesAsync();
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = $"Error al procesar el padrón: {ex.Message}" });
+        }
     }
 }

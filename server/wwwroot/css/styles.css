@@ -3,7 +3,7 @@
    ========================================================================== */
 
 :root {
-  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   /* Color Palette - Refined Slate & Cyber Blue */
   --bg-app: #090d16;
@@ -449,6 +449,17 @@ body {
   padding: 0.3rem 0.65rem;
   font-size: 0.78rem;
   border-radius: var(--radius-sm);
+}
+
+.btn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger);
+  color: #ffffff;
 }
 
 .btn-download {

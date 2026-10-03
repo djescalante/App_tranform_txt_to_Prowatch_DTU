@@ -60,6 +60,7 @@ public record JobDto(
     int Id,
     DateTime CreatedAt,
     string CreatedByUsername,
+    string? CreatedByFullName,
     string SourceFileName,
     string EventDate,
     string SelectedStates,

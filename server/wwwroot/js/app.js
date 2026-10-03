@@ -23,6 +23,15 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 4000);
 }
 
+window.downloadJob = async function (jobId, format) {
+  try {
+    const fileName = await window.api.downloadJobFile(jobId, format);
+    showToast(`Descargando ${fileName}...`);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
 function formatDate(dateStr) {
   if (!dateStr) return 'N/A';
   const d = new Date(dateStr);
@@ -49,6 +58,16 @@ function dmyToInputDate(dmy) {
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
   }
   return '';
+}
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // --- App Initialization ---
@@ -164,6 +183,26 @@ function initEventListeners() {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
+  // Delegated actions (CSP strict: no inline event handlers)
+  document.addEventListener('click', (e) => {
+    const downloadBtn = e.target.closest('[data-download-job]');
+    if (downloadBtn) {
+      window.downloadJob(Number(downloadBtn.dataset.downloadJob), downloadBtn.dataset.format);
+      return;
+    }
+
+    const editBtn = e.target.closest('[data-edit-user]');
+    if (editBtn) {
+      try {
+        window.onEditUser(JSON.parse(editBtn.dataset.editUser));
+      } catch (err) {
+        showToast('No se pudo abrir el usuario.', 'error');
+      }
+    }
+  });
+
+  document.getElementById('btn-goto-history')?.addEventListener('click', () => switchTab('historial'));
+
   // Quick Date suggestions
   document.getElementById('btn-date-suggested').addEventListener('click', () => {
     if (state.padronInfo?.suggestedDate) {
@@ -207,7 +246,8 @@ function initEventListeners() {
   document.getElementById('input-search-jobs').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
     renderJobsTable(state.jobs.filter(j => 
-      j.createdByUsername.toLowerCase().includes(q) ||
+      (j.createdByUsername || '').toLowerCase().includes(q) ||
+      (j.createdByFullName || '').toLowerCase().includes(q) ||
       j.eventDate.includes(q) ||
       (j.selectedSocieties && j.selectedSocieties.toLowerCase().includes(q))
     ));
@@ -215,13 +255,71 @@ function initEventListeners() {
 
   // Admin New User
   document.getElementById('btn-admin-new-user')?.addEventListener('click', () => {
-    document.getElementById('modal-user-form').reset();
+    document.getElementById('form-user-modal').reset();
     document.getElementById('modal-user-id').value = '';
+    const usernameInput = document.getElementById('modal-user-username');
+    usernameInput.disabled = false;
+    usernameInput.value = '';
+    document.getElementById('modal-user-password').placeholder = '••••••••';
     document.getElementById('modal-user-title').innerText = 'Nuevo Usuario';
     document.getElementById('modal-user').classList.add('open');
   });
 
   document.getElementById('form-user-modal')?.addEventListener('submit', onSaveUser);
+
+  // Admin Clear Jobs
+  document.getElementById('btn-admin-clear-jobs')?.addEventListener('click', () => {
+    document.getElementById('modal-confirm-clear').classList.add('open');
+  });
+
+  document.getElementById('btn-confirm-clear-jobs')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-confirm-clear-jobs');
+    btn.disabled = true;
+    btn.innerText = 'Limpiando...';
+    try {
+      const res = await window.api.clearJobs();
+      document.getElementById('modal-confirm-clear').classList.remove('open');
+      showToast(res.message || 'Historial de procesos limpiado.');
+      loadDashboard();
+      loadJobs();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'Sí, Limpiar Historial';
+    }
+  });
+
+  // Admin Save Config
+  document.getElementById('btn-admin-save-config')?.addEventListener('click', async () => {
+    const inputPath = document.getElementById('admin-cfg-input').value.trim();
+    const outputDir = document.getElementById('admin-cfg-output').value.trim();
+    if (!inputPath || !outputDir) {
+      showToast('Ambas rutas son obligatorias.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btn-admin-save-config');
+    btn.disabled = true;
+    btn.innerText = 'Guardando...';
+    try {
+      await window.api.updateConfig({ InputPath: inputPath, OutputDir: outputDir });
+      const [info, options] = await Promise.all([
+        window.api.getPadronInfo(),
+        window.api.getOptions()
+      ]);
+      state.padronInfo = info;
+      state.filterOptions = options;
+      renderPadronStatus();
+      renderFilterChips();
+      showToast('Configuración guardada correctamente.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'Guardar Configuración';
+    }
+  });
 }
 
 // --- Render Filter Chips ---
@@ -286,7 +384,7 @@ function renderPadronStatus() {
 
   if (info.exists) {
     statusBadge.className = 'status-pill success';
-    statusBadge.innerHTML = '<span class="pulse-dot"></span> Padrón Disponible';
+    statusBadge.innerHTML = '<span class="pulse-dot"></span> Archivo Disponible Para Procesar';
     sizeElem.innerText = `${info.sizeFormatted} (${info.totalColumns} columnas)`;
     mtimeElem.innerText = formatDate(info.lastModified);
     pathElem.innerText = info.path;
@@ -326,14 +424,14 @@ async function loadDashboard() {
     jobs.slice(0, 5).forEach(job => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${formatDate(job.createdAt)}</td>
-        <td><strong>${job.eventDate}</strong></td>
-        <td><span style="font-size:0.75rem; color:var(--text-muted);">${job.selectedSocieties || 'Todas'}</span></td>
+        <td>${escapeHtml(formatDate(job.createdAt))}</td>
+        <td><strong>${escapeHtml(job.eventDate)}</strong></td>
+        <td><span style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(job.selectedSocieties || 'Todas')}</span></td>
         <td><strong style="color:var(--primary); font-size:1rem;">${job.totalMatchedRows}</strong></td>
-        <td><span class="status-pill ${job.status === 'Completed' ? 'success' : 'danger'}">${job.status}</span></td>
+        <td><span class="status-pill ${job.status === 'Completed' ? 'success' : 'danger'}">${escapeHtml(job.status)}</span></td>
         <td>
-          ${job.dtuFileName ? `<button class="btn btn-sm btn-download" onclick="window.api.downloadJobFile(${job.id}, 'dtu', '${job.dtuFileName}')">DTU</button>` : ''}
-          ${job.xlsxFileName ? `<button class="btn btn-sm btn-download" onclick="window.api.downloadJobFile(${job.id}, 'xlsx', '${job.xlsxFileName}')">XLSX</button>` : ''}
+          ${job.dtuFileName ? `<button class="btn btn-sm btn-download" data-download-job="${job.id}" data-format="dtu">DTU</button>` : ''}
+          ${job.xlsxFileName ? `<button class="btn btn-sm btn-download" data-download-job="${job.id}" data-format="xlsx">XLSX</button>` : ''}
         </td>
       `;
       tbody.appendChild(tr);
@@ -381,10 +479,10 @@ async function onGeneratePreview() {
       res.rows.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><span class="status-pill warning">${r.estado}</span></td>
-          <td><strong>${r.documento}</strong></td>
-          <td>${r.sociedad}</td>
-          <td>${r.fechaEvento}</td>
+          <td><span class="status-pill warning">${escapeHtml(r.estado)}</span></td>
+          <td><strong>${escapeHtml(r.documento)}</strong></td>
+          <td>${escapeHtml(r.sociedad)}</td>
+          <td>${escapeHtml(r.fechaEvento)}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -504,17 +602,20 @@ function renderJobsTable(jobs) {
   jobs.forEach(job => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${formatDate(job.createdAt)}</td>
-      <td><strong>${job.eventDate}</strong></td>
-      <td><span style="font-size:0.75rem; color:var(--text-muted);">${job.selectedSocieties || 'Todas'}</span></td>
+      <td>${escapeHtml(formatDate(job.createdAt))}</td>
+      <td><strong>${escapeHtml(job.eventDate)}</strong></td>
+      <td><span style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(job.selectedSocieties || 'Todas')}</span></td>
       <td><strong style="color:var(--primary); font-size:1.05rem;">${job.totalMatchedRows}</strong></td>
-      <td><span style="font-size:0.8rem; color:var(--text-muted);">${job.createdByUsername}</span></td>
-      <td><span class="status-pill ${job.status === 'Completed' ? 'success' : 'danger'}">${job.status}</span></td>
+      <td>
+        <div style="font-size:0.8rem;">${escapeHtml(job.createdByFullName || job.createdByUsername)}</div>
+        <div style="font-size:0.7rem; color:var(--text-dim);">${escapeHtml(job.createdByUsername)}</div>
+      </td>
+      <td><span class="status-pill ${job.status === 'Completed' ? 'success' : 'danger'}">${escapeHtml(job.status)}</span></td>
       <td>
         <div style="display:flex; gap:0.4rem;">
-          ${job.dtuFileName ? `<button class="btn btn-sm btn-download" title="Descargar DTU" onclick="window.api.downloadJobFile(${job.id}, 'dtu', '${job.dtuFileName}')">DTU</button>` : ''}
-          ${job.xlsxFileName ? `<button class="btn btn-sm btn-download" title="Descargar Excel" onclick="window.api.downloadJobFile(${job.id}, 'xlsx', '${job.xlsxFileName}')">XLSX</button>` : ''}
-          ${job.tsvFileName ? `<button class="btn btn-sm btn-download" title="Descargar TSV" onclick="window.api.downloadJobFile(${job.id}, 'tsv', '${job.tsvFileName}')">TSV</button>` : ''}
+          ${job.dtuFileName ? `<button class="btn btn-sm btn-download" title="Descargar DTU" data-download-job="${job.id}" data-format="dtu">DTU</button>` : ''}
+          ${job.xlsxFileName ? `<button class="btn btn-sm btn-download" title="Descargar Excel" data-download-job="${job.id}" data-format="xlsx">XLSX</button>` : ''}
+          ${job.tsvFileName ? `<button class="btn btn-sm btn-download" title="Descargar TSV" data-download-job="${job.id}" data-format="tsv">TSV</button>` : ''}
         </div>
       </td>
     `;
@@ -536,13 +637,13 @@ async function loadAdminUsers() {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${u.id}</td>
-        <td><strong>${u.username}</strong></td>
-        <td>${u.fullName}</td>
-        <td><span class="role-badge ${u.role.toLowerCase()}">${u.role}</span></td>
+        <td><strong>${escapeHtml(u.username)}</strong></td>
+        <td>${escapeHtml(u.fullName)}</td>
+        <td><span class="role-badge ${u.role === 'Admin' ? 'admin' : 'operator'}">${escapeHtml(u.role)}</span></td>
         <td><span class="status-pill ${u.isActive ? 'success' : 'danger'}">${u.isActive ? 'Activo' : 'Inactivo'}</span></td>
-        <td>${formatDate(u.lastLoginAt)}</td>
+        <td>${escapeHtml(formatDate(u.lastLoginAt))}</td>
         <td>
-          <button class="btn btn-sm btn-secondary" onclick="onEditUser(${JSON.stringify(u).replace(/"/g, '&quot;')})">Editar</button>
+          <button class="btn btn-sm btn-secondary" data-edit-user="${escapeHtml(JSON.stringify(u))}">Editar</button>
         </td>
       `;
       tbody.appendChild(tr);

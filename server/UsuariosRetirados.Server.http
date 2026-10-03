@@ -1,6 +1,52 @@
-@UsuariosRetirados.Server_HostAddress = http://localhost:5235
+@host = https://localhost:5001
+@token = PEGAR_TOKEN_DEL_LOGIN_AQUI
 
-GET {{UsuariosRetirados.Server_HostAddress}}/weatherforecast/
-Accept: application/json
+### Login (copiar el token de la respuesta)
+POST {{host}}/api/auth/login
+Content-Type: application/json
 
-###
+{
+  "username": "admin",
+  "password": "Admin123!"
+}
+
+### Estado del padrón
+GET {{host}}/api/empleados/info
+Authorization: Bearer {{token}}
+
+### Opciones de filtros
+GET {{host}}/api/empleados/options
+Authorization: Bearer {{token}}
+
+### Vista previa
+POST {{host}}/api/empleados/preview
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fechaEvento": "28/09/2026",
+  "sociedades": ["BANCOLOMBIA"],
+  "estados": ["Terminated"],
+  "limit": 10
+}
+
+### Procesar y exportar
+POST {{host}}/api/empleados/process
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fechaEvento": "28/09/2026",
+  "sociedades": ["BANCOLOMBIA"],
+  "estados": ["Terminated"],
+  "emitDtu": true,
+  "emitXlsx": true,
+  "emitTsv": false
+}
+
+### Historial de procesos
+GET {{host}}/api/jobs?limit=10
+Authorization: Bearer {{token}}
+
+### Descargar DTU de un proceso (token por query string)
+GET {{host}}/api/jobs/1/download/dtu?token={{token}}
