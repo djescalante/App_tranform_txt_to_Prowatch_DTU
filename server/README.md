@@ -1,8 +1,8 @@
 # Usuarios Retirados DTU — Servidor Web (.NET 10)
 
-App web cliente-servidor que replica el motor de la herramienta PowerShell
-(`UsuariosRetiradosDTU/`): filtra el padrón `Empleados.txt` y genera los insumos
-para ProWatch DTU, con login, historial de procesos y descargas desde el navegador.
+App web cliente-servidor que reemplaza a la herramienta PowerShell original (retirada): filtra el
+padrón `Empleados.txt` y genera los insumos para ProWatch DTU, con login, historial de procesos y
+descargas desde el navegador.
 
 ## Arquitectura
 
@@ -152,24 +152,22 @@ Ejemplos listos para usar en `UsuariosRetirados.Server.http`.
 `Usuarios Retirados DTU al <dd-MM-yyyy>.txt` no lleva encabezado y cada línea es
 `DOCUMENTO<TAB>FECHA<TAB>T` (UTF-8 con BOM). **No cambiarlo**: lo consume ProWatch DTU.
 
-## Paridad con el motor PowerShell
+## Baseline contractual de salidas
 
-El TXT DTU y el TSV deben ser **byte-idénticos** a los que genera `Motor.ps1`
-(mismo `TextFieldParser`, mismo orden de filas y encoding). Verificación:
+El TXT DTU y el TSV deben ser **byte-idénticos** al histórico verificado (mismo `TextFieldParser`,
+mismo orden de filas y encoding). La app PowerShell que generaba la referencia está **retirada**
+(respaldo en `E:\CarpetaTrabajoIA\backup\UsuariosRetiradosDTU_PS_<fecha>.zip`); los hashes de
+abajo quedan como baseline contractual:
 
-```powershell
-# 1) Referencia con Windows PowerShell 5.1 y el motor original
-powershell.exe -NoProfile -Command ". '.\UsuariosRetiradosDTU\app\Motor.ps1'; Export-UsuariosRetirados -Path '.\Empleados.txt' -OutputDir 'C:\temp\ref' -FechaEvento '28/09/2026' -Sociedades @('BANCOLOMBIA') -Estados @('Terminated') -EmitDtu -EmitTsv"
-Get-FileHash 'C:\temp\ref\Usuarios Retirados DTU al 28-09-2026.txt' -Algorithm SHA256
-
-# 2) Generar con el server (preview + process) y comparar el SHA256
-#    Valores de referencia verificados (28/09/2026 + BANCOLOMBIA + Terminated):
-#    DTU: FFCDFB9F4C1321A4AB7AF33D5A4868129BCB2F58994385A08AE09751E963D0C8
-#    TSV: 0BDC009677CFA2D6F53E5B31D3D105E2FBD962C1B4B10747DB14B0B99F2D7318
+```text
+# Filtro 28/09/2026 + BANCOLOMBIA + Terminated (48 filas)
+DTU: FFCDFB9F4C1321A4AB7AF33D5A4868129BCB2F58994385A08AE09751E963D0C8
+TSV: 0BDC009677CFA2D6F53E5B31D3D105E2FBD962C1B4B10747DB14B0B99F2D7318
 ```
 
-Casos cubiertos por la verificación: filtro default (48 filas), "Con terminación
-de contrato" (expande con y sin tilde), sociedades `TODAS` (50 filas) y 0 coincidencias.
+Verificación: procesar con el server y comparar `Get-FileHash <txt> -Algorithm SHA256` contra el
+valor de arriba. Casos cubiertos: filtro default (48 filas), "Con terminación de contrato" (expande
+con y sin tilde), sociedades `TODAS` (50 filas) y 0 coincidencias.
 
 ## Datos sensibles
 

@@ -1,76 +1,105 @@
 # AGENTS.md
 
-Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y generar insumos para ProWatch DTU. La herramienta original es PowerShell + WinForms; además hay una app web ASP.NET Core en `server/` que replica el motor con login, historial y descargas.
+Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y generar insumos para
+ProWatch DTU. El desarrollo activo es la **app web ASP.NET Core 10** en `server/` (API REST + SPA)
+con login, historial y descargas.
+
+> La app PowerShell + WinForms original está **retirada** (ver "Legacy"). Su código se conserva en
+> el historial de git y en un ZIP de respaldo.
 
 ## Repo y datos sensibles
-- Es un repo git con raíz en esta carpeta (`empleados/`). El `.gitignore` excluye los insumos **PII** y los artefactos generados: `Empleados*.txt|csv|xlsx`, `Usuarios Retirados*` (xlsx/tsv/csv/txt), `UsuariosRetiradosDTU/salidas/*` (salvo `.gitkeep`), `UsuariosRetiradosDTU/logs/*`, `UsuariosRetiradosDTU/app/config.json` y `*.bak.json`.
-- **No commitear datos de empleados** (el `Empleados.txt` real es ~158 MB y contiene cédulas). Para probar, usar un archivo fuera del repo o una muestra anonimizada.
-- `UsuariosRetiradosDTU/lib/ImportExcel/7.8.10/` **sí** se versiona (módulo embebido, ~4.6 MB) para que la app sea portable/offline.
-
-## Entorno y compatibilidad
-- **Destino: Windows PowerShell 5.1** (el server no tiene PS7). El código debe seguir siendo 5.1-compatible; no usar sintaxis solo de PS7.
-- La máquina de desarrollo sí tiene PS7 (`pwsh`). **Probar siempre con `powershell.exe`**, no `pwsh`.
-- WinForms requiere Desktop Experience (no corre en Server Core).
-- **Mark-of-the-Web**: si la carpeta viene de un ZIP descargado, `EPPlus.dll` queda con `Zone.Identifier` y .NET no lo carga (`HRESULT 0x80131515`); `ImportExcel` no importa y `Export-Excel` no existe. Mitigado: `Iniciar.cmd` y `Import-ImportExcelModule` llaman `Unblock-File` sobre `lib\`. Nunca asumir que el archivo está desbloqueado en una máquina nueva.
+- Repo git con raíz en esta carpeta (`empleados/`). El `.gitignore` excluye los insumos **PII** y
+  los artefactos generados: `Empleados*.txt|csv|xlsx`, `Usuarios Retirados*` (xlsx/tsv/csv/txt),
+  `salidas/*` (salvo `.gitkeep`), `server/certs/`, `prerequisitos/*` (salvo `*.md`),
+  `*.db*`, `**/publish/`, `*.bak.json`.
+- **No commitear datos de empleados** (el `Empleados.txt` real es ~165 MB y contiene cédulas).
+  Para probar, usar un archivo fuera del repo o una muestra anonimizada.
+- `server/certs/` (PFX + contraseña) y `prerequisitos/*.exe` **no** se versionan.
 
 ## Archivo de entrada (quirks críticos)
-- `Empleados.txt` (~165 MB, ~203.715 filas) es **CSV por comas, con encabezado de 78 columnas, codificación Windows-1252** (sin BOM). Leerlo como UTF-8 rompe los acentos.
+- `Empleados.txt` (~165 MB, ~203.715 filas) es **CSV por comas, encabezado de 78 columnas,
+  codificación Windows-1252** (sin BOM). Leerlo como UTF-8 rompe los acentos.
 - Contiene **comas internas dentro de campos entre comillas** y 1 fila con comillas desbalanceadas.
-- **NO usar `Split(',')` ni delimitar por posición simple**: usar `Microsoft.VisualBasic.FileIO.TextFieldParser` en streaming (lo hace `Motor.ps1`). El split posicional da resultados distintos.
+- **NO usar `Split(',')`**: usar `Microsoft.VisualBasic.FileIO.TextFieldParser` en streaming
+  (lo hace `CsvStreamingEngine.cs`). El split posicional da resultados distintos.
 - `Empleados - copia.txt` es otra copia de datos, no código.
 
-## Columnas usadas (por nombre, no por índice fijo idealmente)
-Índices reales en el encabezado: `ESTADO`=0, `DOCUMENTO`=1, `NOMBRE SOCIEDAD`=9, `FECHA EVENTO`=42. `FECHA EVENTO` tiene formato `dd/MM/yyyy`.
+## Columnas usadas (por nombre, no por índice fijo)
+Índices reales: `ESTADO`=0, `DOCUMENTO`=1, `NOMBRE SOCIEDAD`=9, `FECHA EVENTO`=42.
+`FECHA EVENTO` tiene formato `dd/MM/yyyy`.
 
 ## Salidas
 - `Usuarios Retirados <dd-MM-yyyy>.xlsx` y `.tsv` (tabulado; el TSV lleva encabezado).
-- `Usuarios Retirados DTU al <dd-MM-yyyy>.txt`: **sin encabezado**, `DOCUMENTO<TAB>FECHA<TAB>T`. Este formato es el que consume ProWatch DTU: **no cambiarlo**.
+- `Usuarios Retirados DTU al <dd-MM-yyyy>.txt`: **sin encabezado**, `DOCUMENTO<TAB>FECHA<TAB>T`.
+  Este formato lo consume ProWatch DTU: **no cambiarlo**.
 - Fechas en nombres con guiones (`/` es ilegal en Windows).
 - Entrada Windows-1252; salidas **UTF-8 con BOM**.
-- El XLSX mantiene `FECHA EVENTO` como texto `dd/MM/yyyy` a propósito (consistencia con el DTU); no convertir a tipo fecha sin pedido explícito.
+- El XLSX mantiene `FECHA EVENTO` como texto `dd/MM/yyyy` a propósito; no convertir a tipo fecha.
+- Destino por defecto: `salidas\` en la raíz del repo (configurable en Administración).
 
 ## Estructura
-- `UsuariosRetiradosDTU\Iniciar.cmd` — lanzador (doble clic, consola oculta).
-- `UsuariosRetiradosDTU\app\Motor.ps1` — motor. API: `Import-ImportExcelModule`, `Get-EmpleadoResumen`, `Select-EmpleadoFilas`, `Write-UsuariosRetirados`, `Export-UsuariosRetirados` (compat) y estructura: `Get-EmpleadoEncabezado`, `Get-EstructuraBase`, `Save-EstructuraBase`, `Compare-Estructura`.
-- `UsuariosRetiradosDTU\app\UsuariosRetirados.ps1` — GUI WinForms (todo el flujo).
-- `UsuariosRetiradosDTU\app\estructura.json` — base de estructura esperada (nombres+orden de columnas); respaldo en `estructura.bak.json`.
-- `UsuariosRetiradosDTU\app\config.json` — persiste InputPath, OutputDir, Estados, Sociedades, MostrarResumenExport.
-- **Gotcha PS 5.1**: pasar un `List[object]` a un parámetro `[object]` lanza "Los tipos de argumentos no coinciden"; tipar el parámetro como `IEnumerable` (por eso `Write-UsuariosRetirados -Filas` es `IEnumerable`).
-- `UsuariosRetiradosDTU\lib\ImportExcel\7.8.10\` — módulo embebido (incluye `EPPlus.dll`) para generar XLSX **sin Excel instalado**. Cargar desde `lib\`; no depender de PSGallery ni de Excel COM en el server.
-- `Usuarios-Retirados-DTU.ps1` — script piloto original (referencia, solo CLI).
-- `salidas\` y `logs\` — artefactos; `logs\` está vacío.
-- `server\` — app web ASP.NET Core 10 (API REST + SPA en `wwwroot\`) con JWT/BCrypt, historial en SQLite (`usuarios_retirados.db`, ignorada) y descargas. Convive con la GUI; no la reemplaza.
-- `server\README.md` — arquitectura, API, configuración y despliegue de la app web.
-- `server\Iniciar-Servidor.cmd` — lanzador web en Development (`https://localhost:5001`, TLS 1.3); usa el SDK x64 explícito y lee la contraseña del PFX desde `server\certs\pfx-password.txt`.
-- `server\Instalar-Servicio.ps1` — publica y registra el servicio Windows (escribe `Jwt__Secret`, `Kestrel__Endpoints__Https__*` en el registro del servicio).
-- `prerequisitos\` — instaladores .NET 10 para el servidor (binarios ignorados por git; `prerequisitos\README.md` con links, checksums y checklist de despliegue **sí** se versiona).
+- `server\` — app web ASP.NET Core 10 (API REST + SPA en `wwwroot\`) con JWT/BCrypt, historial en
+  SQLite (`usuarios_retirados.db`, ignorada) y descargas.
+- `server\README.md` — arquitectura, API, configuración, TLS y despliegue.
+- `server\app\estructura.json` — base de estructura esperada (nombres+orden de columnas).
+- `server\Iniciar-Servidor.cmd` — lanzador de desarrollo (`https://localhost:5001`, TLS 1.3); usa
+  el SDK x64 explícito y lee la contraseña del PFX desde `server\certs\pfx-password.txt`.
+- `server\Instalar-Servicio.ps1` — publica y registra el servicio Windows (escribe `Jwt__Secret` y
+  `Kestrel__Endpoints__Https__*` en el registro del servicio).
+- `prerequisitos\` — instaladores .NET 10 para el servidor (binarios ignorados; el `README.md` con
+  links, checksums y checklist **sí** se versiona).
+- `salidas\` — artefactos generados (ignorados por git).
 
 ## App web (server/)
-- **Build/run**: usar el SDK x64 `C:\Program Files\dotnet\dotnet.exe`; el `dotnet` x86 que suele aparecer primero en el PATH **no tiene SDK** y `dotnet run` falla con "No .NET SDKs were found". `Iniciar-Servidor.cmd` ya lo resuelve.
-- **Producción exige secreto JWT**: `Jwt__Secret` (env var o variable del servicio). Sin él la app no arranca (fail-fast). En Development lo toma de `appsettings.Development.json`.
-- **Solo HTTPS / TLS 1.3**: Kestrel escucha únicamente `https://0.0.0.0:5001` con `SslProtocols=Tls13` (TLS 1.2 rechazado). El PFX vive en `server\certs\` (ignorado por git; contraseña en `pfx-password.txt` o `Kestrel__Endpoints__Https__CertPassword`). No reintroducir HTTP ni `Urls`.
-- **CSP estricto**: la SPA no debe usar handlers inline (`onclick=`) ni recursos externos (fuentes/CDN); usar `data-*` + listeners delegados. `SecurityHeadersMiddleware` aplica HSTS, CSP, nosniff, frame-deny, etc., y Kestrel oculta el header `Server`.
-- **Paridad contractual**: el TXT DTU del server debe ser **byte-idéntico** al de `Motor.ps1`. El parser es `TextFieldParser` (`CsvStreamingEngine.cs`) igual que el motor; verificar con SHA256 (fórmula y hashes de referencia en `server\README.md`). No tocar el formato DTU.
-- **Cache de escaneo**: preview y process comparten un cache en memoria de 5 min (`ScanCache.cs`) para no escanear los ~165 MB dos veces.
-- **Rutas robustas**: `AppPaths.cs` resuelve `estructura.json` y `salidas\` desde repo, `publish\` o servicio Windows; `AppPaths:*` de `appsettings.json` son solo el seed inicial (luego mandan `AppConfigs` en SQLite).
-- **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!` — cambiar en producción (mínimo 8 caracteres).
+- **Build/run**: usar el SDK x64 `C:\Program Files\dotnet\dotnet.exe`; el `dotnet` x86 que suele
+  aparecer primero en el PATH **no tiene SDK** y `dotnet run` falla con "No .NET SDKs were found".
+  `Iniciar-Servidor.cmd` ya lo resuelve.
+- **Producción exige secreto JWT**: `Jwt__Secret` (env var o variable del servicio). Sin él la app
+  no arranca (fail-fast). En Development lo toma de `appsettings.Development.json`.
+- **Solo HTTPS / TLS 1.3**: Kestrel escucha únicamente `https://0.0.0.0:5001` con
+  `SslProtocols=Tls13` (TLS 1.2 rechazado). El PFX vive en `server\certs\` (ignorado; contraseña en
+  `pfx-password.txt` o `Kestrel__Endpoints__Https__CertPassword`). No reintroducir HTTP ni `Urls`.
+- **CSP estricto**: la SPA no debe usar handlers inline (`onclick=`) ni recursos externos
+  (fuentes/CDN); usar `data-*` + listeners delegados. `SecurityHeadersMiddleware` aplica HSTS, CSP,
+  nosniff, frame-deny, etc., y Kestrel oculta el header `Server`.
+- **Paridad contractual**: el TXT DTU del server debe ser **byte-idéntico** al histórico. El parser
+  es `TextFieldParser`; verificar con SHA256 (hashes de referencia en `server\README.md`). No tocar
+  el formato DTU.
+- **Cache de escaneo**: preview y process comparten un cache en memoria de 5 min (`ScanCache.cs`).
+- **Rutas robustas**: `AppPaths.cs` resuelve `estructura.json` y `salidas\` desde repo, `publish\`
+  o servicio Windows; `AppPaths:*` de `appsettings.json` son el seed inicial (luego mandan
+  `AppConfigs` en SQLite).
+- **Esquema SQLite**: se usa `EnsureCreated` + upgrades idempotentes; al agregar tablas/columnas hay
+  que actualizar también el upgrade para DBs existentes.
+- **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!` — cambiar en producción.
 - CORS por defecto vacío = mismo origen; `Cors:AllowedOrigins` permite lista blanca o `["*"]`.
-- Si `Instalar-Servicio.ps1` corre con PS 5.1, evitar sintaxis PS7 (`?.`, `RandomNumberGenerator::Fill`).
+- Si `Instalar-Servicio.ps1` corre con PS 5.1, evitar sintaxis PS7 (`?.`,
+  `RandomNumberGenerator::Fill`).
 
 ## Reglas de negocio (no obvias)
-- Filtro de estado por defecto `Terminated`; en el archivo también existen `Active`, `Activo`, `Latente`, `ReportNo-Show` y **dos variantes** de "Con terminación de contrato": con tilde y sin tilde. La opción visible `Con terminación de contrato` en la GUI expande a **ambas** (`$script:EstadoMapa` en la GUI).
-- Sociedades: solo `BANCOLOMBIA` (default), `NEQUI SA`, `VALORES BANCOLOMBIA`, `BANCA DE INVERSION BANCOLOMBIA`, en ese orden. `Sociedades` vacío = todas.
-- Fecha por defecto = `LastWriteTime` del TXT − 1 día (con `Empleados.txt` mtime 29/09/2026 ⇒ 28/09/2026).
-- Defaults actuales (Terminated + BANCOLOMBIA + 28/09/2026) ⇒ 48 registros; sin filtro de sociedad ⇒ 50.
-- Al cargar se valida la estructura del encabezado contra `estructura.json`; si difiere, la GUI ofrece Continuar/Cancelar/Actualizar base (con respaldo). Si faltan columnas críticas, bloquea exportar.
-- La GUI exige al menos una sociedad marcada (el motor sí trata `Sociedades` vacío como "todas").
-- Export es **single-scan**: `Select-EmpleadoFilas` cachea las coincidencias y `Write-UsuariosRetirados` escribe.
+- Filtro de estado por defecto `Terminated`; en el archivo también existen `Active`, `Activo`,
+  `Latente`, `ReportNo-Show` y **dos variantes** de "Con terminación de contrato": con tilde y sin
+  tilde. La opción visible `Con terminación de contrato` expande a **ambas** (`CsvStreamingEngine`).
+- Sociedades: solo `BANCOLOMBIA` (default), `NEQUI SA`, `VALORES BANCOLOMBIA`,
+  `BANCA DE INVERSION BANCOLOMBIA`, en ese orden. `Sociedades` vacío = todas.
+- Fecha por defecto = `LastWriteTime` del TXT − 1 día (mtime 29/09/2026 ⇒ 28/09/2026).
+- Defaults actuales (Terminated + BANCOLOMBIA + 28/09/2026) ⇒ 48 registros; sin filtro de sociedad
+  ⇒ 50.
+- El encabezado se valida contra `estructura.json`; si faltan columnas críticas no se puede
+  exportar (`SchemaValid=false`).
+- La app exige al menos una sociedad y un estado seleccionados.
 
 ## Verificación
-- Sintaxis sin ejecutar la GUI:
-  `powershell.exe -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::ParseFile('<ruta.ps1>',[ref]$null,[ref]$null)"`
-- Prueba del motor (sin GUI): dot-source `Motor.ps1`, `Import-ImportExcelModule`, y llamar `Export-UsuariosRetirados -PreviewLimit <N>` para contar sin escribir archivos.
-- Verificar que el TXT DTU siga **byte-idéntico**: comparar con `Get-FileHash <txt> -Algorithm SHA256`.
-- App web: build con SDK x64 `& "C:\Program Files\dotnet\dotnet.exe" build server\UsuariosRetirados.Server.csproj -c Release`; paridad del DTU y smoke test de API descritos en `server\README.md`.
+- Build app web (SDK x64):
+  `& "C:\Program Files\dotnet\dotnet.exe" build server\UsuariosRetirados.Server.csproj -c Release`
+- Paridad del TXT DTU (SHA256) y smoke test de API: ver `server\README.md`.
 - No hay framework de tests; la verificación es manual con los comandos anteriores.
-- Regla de ejecución en el server: el `.cmd` usa `-ExecutionPolicy Bypass`; una GPO podría bloquearlo.
+- Regla de ejecución en el server: los `.cmd` usan `-ExecutionPolicy Bypass`; una GPO podría
+  bloquearlos.
+
+## Legacy (app PowerShell, retirada)
+- La app PowerShell + WinForms (`UsuariosRetiradosDTU\`, `Usuarios-Retirados-DTU.ps1`, `specs.md`)
+  ya **no** forma parte del desarrollo. El código sigue en el historial de git.
+- Respaldo portable: `E:\CarpetaTrabajoIA\backup\UsuariosRetiradosDTU_PS_<fecha>.zip` (fuera del
+  repo; incluye `lib\ImportExcel`).
+- Los hashes SHA256 del TXT DTU en `server\README.md` siguen siendo el **baseline contractual**.

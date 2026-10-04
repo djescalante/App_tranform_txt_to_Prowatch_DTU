@@ -7,13 +7,29 @@ namespace UsuariosRetirados.Server.Services;
 /// </summary>
 public static class AppPaths
 {
-    public const string EstructuraRelative = @"UsuariosRetiradosDTU\app\estructura.json";
-    public const string OutputRelative = @"UsuariosRetiradosDTU\salidas";
+    // estructura.json now lives inside the server folder (server\app\estructura.json).
+    private static readonly string[] EstructuraRelatives =
+    [
+        @"app\estructura.json",
+        @"server\app\estructura.json"
+    ];
+
+    public const string OutputRelative = @"salidas";
 
     public static string? FindEstructuraJson(string? contentRoot = null, string? configuredPath = null)
     {
-        return EnumerateCandidates(contentRoot, configuredPath, EstructuraRelative)
-            .FirstOrDefault(File.Exists);
+        if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        foreach (var relative in EstructuraRelatives)
+        {
+            var found = EnumerateCandidates(contentRoot, null, relative).FirstOrDefault(File.Exists);
+            if (found != null) return found;
+        }
+
+        return null;
     }
 
     public static string? FindExistingOutputFile(string outputDir, string fileName, string? contentRoot = null)

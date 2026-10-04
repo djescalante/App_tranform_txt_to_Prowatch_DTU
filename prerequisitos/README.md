@@ -57,14 +57,11 @@ dotnet --list-runtimes    # debe aparecer Microsoft.AspNetCore.App 10.0.x
   En un server anterior, editar `server\appsettings.json` y cambiar
   `Kestrel:Endpoints:Https:SslProtocols` a `[ "Tls12", "Tls13" ]` (o mínimo `Tls12`).
 - **Windows PowerShell 5.1**: viene con Windows; no hay que instalar nada.
-- La GUI original (`UsuariosRetiradosDTU\`) requiere Desktop Experience (no corre
-  en Server Core); la app web sí corre en Core.
-- **ImportExcel** ya viene embebido en `UsuariosRetiradosDTU\lib\` (no descargar).
 - **Node.js no es necesario** en el servidor (el frontend es estático y el backend .NET).
 
 ## Checklist de despliegue
 
-1. Copiar el repo (o solo `server\` + `UsuariosRetiradosDTU\`) al servidor.
+1. Copiar el repo (o al menos `server\` + `prerequisitos\`) al servidor.
 2. Copiar `Empleados.txt` al servidor (dato PII, no está en git) y ajustar la ruta
    del padrón en Administración o `AppPaths:InputPath`.
 3. Copiar `server\certs\` (PFX + `pfx-password.txt`, tampoco están en git) **o**

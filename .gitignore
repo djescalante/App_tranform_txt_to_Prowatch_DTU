@@ -9,10 +9,8 @@ Empleados*.xlsx
 # =========================================================
 #  Salidas / reportes generados (contienen PII)
 # =========================================================
-UsuariosRetiradosDTU/salidas/*
-!UsuariosRetiradosDTU/salidas/.gitkeep
-UsuariosRetiradosDTU/logs/*
-!UsuariosRetiradosDTU/logs/.gitkeep
+salidas/*
+!salidas/.gitkeep
 
 # Reportes, por si se generan en cualquier ubicacion
 Usuarios Retirados*.xlsx
@@ -20,11 +18,6 @@ Usuarios Retirados*.tsv
 Usuarios Retirados*.csv
 Usuarios Retirados DTU al*.txt
 *.bak.json
-
-# =========================================================
-#  Estado local de la aplicacion
-# =========================================================
-UsuariosRetiradosDTU/app/config.json
 
 # =========================================================
 #  Prerequisitos de despliegue (binarios grandes, no versionar)

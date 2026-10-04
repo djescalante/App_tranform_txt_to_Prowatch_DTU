@@ -38,7 +38,7 @@ public class CsvStreamingEngine : ICsvStreamingEngine
     }
 
     /// <summary>
-    /// Creates a TextFieldParser configured exactly like Motor.ps1 (New-EmpleadoParser):
+    /// Creates a TextFieldParser matching the historical motor configuration:
     /// delimited by comma, quoted fields honored, no whitespace trimming.
     /// </summary>
     private static TextFieldParser NewParser(string filePath, Encoding encoding)
