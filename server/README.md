@@ -133,6 +133,8 @@ Las descargas aceptan además `?token=` (necesario para `<a href>`).
 | `GET/POST/PUT /api/admin/users` | Admin | Gestión de usuarios |
 | `POST /api/admin/jobs/clear` | Admin | Elimina los registros del historial de procesos (no borra archivos en disco) |
 | `GET/POST /api/admin/config` | Admin | Rutas del padrón/salidas |
+| `GET /api/vip` | auth | Lista VIP (cédulas protegidas) |
+| `POST/PUT/DELETE /api/vip` | Admin | Alta, edición y baja de la lista VIP |
 
 Ejemplos listos para usar en `UsuariosRetirados.Server.http`.
 
@@ -147,8 +149,21 @@ Ejemplos listos para usar en `UsuariosRetirados.Server.http`.
 - CORS vacío = solo mismo origen (la SPA se sirve desde el propio server).
 - `FECHA EVENTO` se mantiene como texto `dd/MM/yyyy` a propósito (consistencia DTU).
 
-## Formato contractual
+## Lista VIP (cédulas protegidas)
 
+Las cédulas de la lista VIP **nunca se exportan** (ni DTU, ni XLSX, ni TSV), aunque coincidan con
+los filtros: si aparecen, la app **alerta** (preview y confirmación) y las **omite**, sin frenar el
+resto del proceso.
+
+- La gestiona un **Admin** (`+ Agregar VIP`, editar, quitar); los operadores solo consultan.
+- `TotalCoinciden` de preview/process = filas **exportadas** (coincidencias − VIP).
+- El job registra `VipOmittedCount` y `VipOmittedDetails` (cédulas omitidas) y el historial lo
+  muestra como badge `VIP −N`.
+- El cache de escaneo guarda filas crudas, así los cambios de la lista aplican de inmediato.
+- Esquema: la tabla `VipEmployees` y las columnas de auditoría se crean con un **upgrade
+  idempotente** al arrancar (`EnsureCreated` no altera bases existentes).
+
+## Formato contractual
 `Usuarios Retirados DTU al <dd-MM-yyyy>.txt` no lleva encabezado y cada línea es
 `DOCUMENTO<TAB>FECHA<TAB>T` (UTF-8 con BOM). **No cambiarlo**: lo consume ProWatch DTU.
 

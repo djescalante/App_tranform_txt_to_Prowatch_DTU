@@ -35,7 +35,9 @@ public record EmpleadoRowDto(
 public record PreviewResponse(
     int TotalCoinciden,
     List<EmpleadoRowDto> Rows,
-    long ElapsedMs
+    long ElapsedMs,
+    int VipOmittedCount,
+    List<VipOmittedRow> VipOmittedRows
 );
 
 public record ProcessRequest(
@@ -53,7 +55,8 @@ public record ProcessResponse(
     int TotalCoinciden,
     long ElapsedMs,
     List<string> FilesGenerated,
-    string Message
+    string Message,
+    int VipOmittedCount
 );
 
 public record JobDto(
@@ -71,5 +74,7 @@ public record JobDto(
     string? XlsxFileName,
     string? TsvFileName,
     string Status,
-    string? ErrorMessage
+    string? ErrorMessage,
+    int VipOmittedCount,
+    string? VipOmittedDetails
 );

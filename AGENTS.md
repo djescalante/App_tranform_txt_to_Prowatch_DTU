@@ -71,6 +71,9 @@ con login, historial y descargas.
   `AppConfigs` en SQLite).
 - **Esquema SQLite**: se usa `EnsureCreated` + upgrades idempotentes; al agregar tablas/columnas hay
   que actualizar también el upgrade para DBs existentes.
+- **Lista VIP**: `VipEmployees` (cédula única, `COLLATE NOCASE`) protege cédulas que **nunca** se
+  exportan; preview/process las alertan y omiten (DTU/XLSX/TSV) y el job guarda
+  `VipOmittedCount`/`VipOmittedDetails`. Admin gestiona (`/api/vip`), operador solo lee.
 - **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!` — cambiar en producción.
 - CORS por defecto vacío = mismo origen; `Cors:AllowedOrigins` permite lista blanca o `["*"]`.
 - Si `Instalar-Servicio.ps1` corre con PS 5.1, evitar sintaxis PS7 (`?.`,
@@ -88,6 +91,7 @@ con login, historial y descargas.
 - El encabezado se valida contra `estructura.json`; si faltan columnas críticas no se puede
   exportar (`SchemaValid=false`).
 - La app exige al menos una sociedad y un estado seleccionados.
+- Las cédulas de la **Lista VIP** nunca se exportan: se alertan y se omiten de DTU/XLSX/TSV.
 
 ## Verificación
 - Build app web (SDK x64):

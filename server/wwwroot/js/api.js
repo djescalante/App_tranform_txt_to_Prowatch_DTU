@@ -155,6 +155,31 @@ class ApiClient {
     return fileName;
   }
 
+  // VIP list
+  async getVipList() {
+    return await this.request('/vip');
+  }
+
+  async createVip(data) {
+    return await this.request('/vip', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateVip(id, data) {
+    return await this.request(`/vip/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deleteVip(id) {
+    return await this.request(`/vip/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
   // Admin
   async getUsers() {
     return await this.request('/admin/users');

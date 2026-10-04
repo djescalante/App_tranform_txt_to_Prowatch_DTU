@@ -26,6 +26,12 @@ public class ProcessingJob
 
     public int TotalMatchedRows { get; set; }
 
+    /// <summary>Cédulas de la lista VIP encontradas y omitidas de los archivos exportables.</summary>
+    public int VipOmittedCount { get; set; }
+
+    [MaxLength(2000)]
+    public string? VipOmittedDetails { get; set; }
+
     public long ExecutionDurationMs { get; set; }
 
     [MaxLength(255)]

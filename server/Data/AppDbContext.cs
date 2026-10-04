@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<ProcessingJob> ProcessingJobs => Set<ProcessingJob>();
     public DbSet<AppConfig> AppConfigs => Set<AppConfig>();
+    public DbSet<VipEmployee> VipEmployees => Set<VipEmployee>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,11 +28,71 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(j => j.CreatedAt);
         });
+
+        modelBuilder.Entity<VipEmployee>(entity =>
+        {
+            // NOCASE: la unicidad y las búsquedas de cédula son case-insensitive.
+            entity.Property(v => v.Cedula).UseCollation("NOCASE");
+            entity.HasIndex(v => v.Cedula).IsUnique();
+        });
+    }
+
+    /// <summary>
+    /// EnsureCreated no altera bases existentes: agrega la tabla VIP y las columnas
+    /// de auditoría de omisiones de forma idempotente.
+    /// </summary>
+    private static async Task EnsureSchemaUpgradesAsync(AppDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "VipEmployees" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_VipEmployees" PRIMARY KEY AUTOINCREMENT,
+                "Cedula" TEXT NOT NULL COLLATE NOCASE,
+                "FullName" TEXT NOT NULL,
+                "CreatedByUsername" TEXT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "UpdatedAt" TEXT NULL
+            );
+            """);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """CREATE UNIQUE INDEX IF NOT EXISTS "IX_VipEmployees_Cedula" ON "VipEmployees" ("Cedula");""");
+
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var connection = db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        try
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA table_info('ProcessingJobs');";
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                columns.Add(reader.GetString(1));
+            }
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+
+        if (!columns.Contains("VipOmittedCount"))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "ProcessingJobs" ADD COLUMN "VipOmittedCount" INTEGER NOT NULL DEFAULT 0;""");
+        }
+
+        if (!columns.Contains("VipOmittedDetails"))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "ProcessingJobs" ADD COLUMN "VipOmittedDetails" TEXT NULL;""");
+        }
     }
 
     public static async Task SeedInitialDataAsync(AppDbContext db, IConfiguration? config = null)
     {
         await db.Database.EnsureCreatedAsync();
+        await EnsureSchemaUpgradesAsync(db);
 
         if (!await db.Users.AnyAsync())
         {

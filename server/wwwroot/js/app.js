@@ -10,7 +10,9 @@ const state = {
   selectedSociedades: new Set(['BANCOLOMBIA']),
   activeTab: 'dashboard',
   jobs: [],
-  previewRows: []
+  previewRows: [],
+  vipList: [],
+  vipPendingDeleteId: null
 };
 
 // --- Helper Functions ---
@@ -110,6 +112,12 @@ function showAppScreen() {
     adminTabBtn.style.display = 'none';
   }
 
+  // VIP: solo Admin puede gestionar (operador solo consulta)
+  const vipNewBtn = document.getElementById('btn-vip-new');
+  if (vipNewBtn) {
+    vipNewBtn.style.display = state.user.role === 'Admin' ? 'inline-block' : 'none';
+  }
+
   loadInitialData();
 }
 
@@ -143,6 +151,7 @@ function switchTab(tabName) {
 
   if (tabName === 'dashboard') loadDashboard();
   if (tabName === 'historial') loadJobs();
+  if (tabName === 'vip') loadVipList();
   if (tabName === 'admin' && state.user.role === 'Admin') loadAdminUsers();
 }
 
@@ -198,6 +207,23 @@ function initEventListeners() {
       } catch (err) {
         showToast('No se pudo abrir el usuario.', 'error');
       }
+      return;
+    }
+
+    const vipEditBtn = e.target.closest('[data-vip-edit]');
+    if (vipEditBtn) {
+      const id = Number(vipEditBtn.dataset.vipEdit);
+      openVipModal(state.vipList.find(v => v.id === id) || null);
+      return;
+    }
+
+    const vipDeleteBtn = e.target.closest('[data-vip-delete]');
+    if (vipDeleteBtn) {
+      const id = Number(vipDeleteBtn.dataset.vipDelete);
+      const vip = state.vipList.find(v => v.id === id);
+      state.vipPendingDeleteId = id;
+      document.getElementById('confirm-vip-name').innerText = vip ? `${vip.fullName} (${vip.cedula})` : '';
+      document.getElementById('modal-confirm-vip-delete').classList.add('open');
     }
   });
 
@@ -320,6 +346,11 @@ function initEventListeners() {
       btn.innerText = 'Guardar Configuración';
     }
   });
+
+  // VIP list (Admin gestiona; operador solo consulta)
+  document.getElementById('btn-vip-new')?.addEventListener('click', () => openVipModal(null));
+  document.getElementById('form-vip-modal')?.addEventListener('submit', onSaveVip);
+  document.getElementById('btn-confirm-vip-delete')?.addEventListener('click', onConfirmVipDelete);
 }
 
 // --- Render Filter Chips ---
@@ -470,6 +501,19 @@ async function onGeneratePreview() {
     );
 
     document.getElementById('preview-modal-count').innerText = `${res.totalCoinciden} coincidencias en ${res.elapsedMs} ms (mostrando hasta 100)`;
+
+    const vipWarning = document.getElementById('preview-vip-warning');
+    if (res.vipOmittedCount > 0) {
+      const names = (res.vipOmittedRows || [])
+        .map(r => `${r.cedula}${r.fullName ? ' (' + r.fullName + ')' : ''}`)
+        .join(', ');
+      vipWarning.innerHTML = `⚠ <strong>${res.vipOmittedCount} cédula(s) de la lista VIP omitida(s)</strong> — no se exportarán: ${escapeHtml(names)}`;
+      vipWarning.style.display = 'block';
+    } else {
+      vipWarning.style.display = 'none';
+      vipWarning.innerHTML = '';
+    }
+
     const tbody = document.getElementById('tbody-preview');
     tbody.innerHTML = '';
 
@@ -537,6 +581,14 @@ async function onOpenConfirmProcess() {
     if (document.getElementById('chk-opt-tsv').checked) formats.push('TSV');
     document.getElementById('confirm-formats').innerText = formats.join(', ');
 
+    const confirmVip = document.getElementById('confirm-vip');
+    if (preview.vipOmittedCount > 0) {
+      confirmVip.innerText = `⚠ ${preview.vipOmittedCount} cédula(s) de la lista VIP serán omitidas de los archivos.`;
+      confirmVip.style.display = 'block';
+    } else {
+      confirmVip.style.display = 'none';
+    }
+
     document.getElementById('modal-confirm-process').classList.add('open');
   } catch (err) {
     showToast(err.message, 'error');
@@ -567,7 +619,8 @@ async function onExecuteProcess() {
     });
 
     document.getElementById('modal-confirm-process').classList.remove('open');
-    showToast(`Éxito! ${res.totalCoinciden} registros exportados en ${res.elapsedMs} ms.`);
+    const vipMsg = res.vipOmittedCount > 0 ? ` (${res.vipOmittedCount} VIP omitidas)` : '';
+    showToast(`Éxito! ${res.totalCoinciden} registros exportados en ${res.elapsedMs} ms${vipMsg}.`);
 
     // Switch to history tab to see and download the result
     switchTab('historial');
@@ -605,7 +658,10 @@ function renderJobsTable(jobs) {
       <td>${escapeHtml(formatDate(job.createdAt))}</td>
       <td><strong>${escapeHtml(job.eventDate)}</strong></td>
       <td><span style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(job.selectedSocieties || 'Todas')}</span></td>
-      <td><strong style="color:var(--primary); font-size:1.05rem;">${job.totalMatchedRows}</strong></td>
+      <td>
+        <strong style="color:var(--primary); font-size:1.05rem;">${job.totalMatchedRows}</strong>
+        ${job.vipOmittedCount > 0 ? `<span class="status-pill warning" style="margin-left:0.4rem;" title="Omitidas: ${escapeHtml(job.vipOmittedDetails || '')}">VIP −${job.vipOmittedCount}</span>` : ''}
+      </td>
       <td>
         <div style="font-size:0.8rem;">${escapeHtml(job.createdByFullName || job.createdByUsername)}</div>
         <div style="font-size:0.7rem; color:var(--text-dim);">${escapeHtml(job.createdByUsername)}</div>
@@ -621,6 +677,104 @@ function renderJobsTable(jobs) {
     `;
     tbody.appendChild(tr);
   });
+}
+
+// --- VIP list ---
+async function loadVipList() {
+  try {
+    state.vipList = await window.api.getVipList();
+    renderVipTable();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+function renderVipTable() {
+  const tbody = document.getElementById('tbody-vip');
+  const isAdmin = state.user?.role === 'Admin';
+
+  const accHeader = document.getElementById('th-vip-acciones');
+  if (accHeader) accHeader.style.display = isAdmin ? '' : 'none';
+
+  tbody.innerHTML = '';
+
+  if (state.vipList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${isAdmin ? 5 : 4}" style="text-align:center; padding:2rem; color:var(--text-dim);">No hay cédulas en la lista VIP.</td></tr>`;
+    return;
+  }
+
+  state.vipList.forEach(v => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(v.cedula)}</strong></td>
+      <td>${escapeHtml(v.fullName)}</td>
+      <td>${escapeHtml(v.createdByUsername || '-')}</td>
+      <td>${escapeHtml(formatDate(v.createdAt))}</td>
+      ${isAdmin ? `<td>
+        <div style="display:flex; gap:0.4rem;">
+          <button class="btn btn-sm btn-secondary" data-vip-edit="${v.id}">Editar</button>
+          <button class="btn btn-sm btn-danger" data-vip-delete="${v.id}">Quitar</button>
+        </div>
+      </td>` : ''}
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function openVipModal(vip) {
+  document.getElementById('form-vip-modal').reset();
+  document.getElementById('modal-vip-id').value = vip ? vip.id : '';
+  document.getElementById('modal-vip-cedula').value = vip ? vip.cedula : '';
+  document.getElementById('modal-vip-nombre').value = vip ? vip.fullName : '';
+  document.getElementById('modal-vip-title').innerText = vip ? `Editar VIP: ${vip.cedula}` : 'Agregar VIP';
+  document.getElementById('modal-vip').classList.add('open');
+}
+
+async function onSaveVip(e) {
+  e.preventDefault();
+  const id = document.getElementById('modal-vip-id').value;
+  const cedula = document.getElementById('modal-vip-cedula').value.trim();
+  const fullName = document.getElementById('modal-vip-nombre').value.trim();
+
+  if (!cedula || !fullName) {
+    showToast('Cédula y nombre son obligatorios.', 'error');
+    return;
+  }
+
+  try {
+    if (id) {
+      await window.api.updateVip(id, { cedula, fullName });
+      showToast('Registro VIP actualizado.');
+    } else {
+      await window.api.createVip({ cedula, fullName });
+      showToast('Cédula agregada a la lista VIP.');
+    }
+    document.getElementById('modal-vip').classList.remove('open');
+    loadVipList();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function onConfirmVipDelete() {
+  const id = state.vipPendingDeleteId;
+  if (!id) return;
+
+  const btn = document.getElementById('btn-confirm-vip-delete');
+  btn.disabled = true;
+  btn.innerText = 'Quitando...';
+  try {
+    const res = await window.api.deleteVip(id);
+    document.getElementById('modal-confirm-vip-delete').classList.remove('open');
+    showToast(res.message || 'Cédula quitada de la lista VIP.');
+    state.vipPendingDeleteId = null;
+    loadVipList();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Sí, Quitar';
+  }
 }
 
 // --- Admin ---

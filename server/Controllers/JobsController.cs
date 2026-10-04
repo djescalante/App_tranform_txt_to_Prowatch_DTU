@@ -45,7 +45,9 @@ public class JobsController : ControllerBase
                               j.XlsxFileName,
                               j.TsvFileName,
                               j.Status,
-                              j.ErrorMessage
+                              j.ErrorMessage,
+                              j.VipOmittedCount,
+                              j.VipOmittedDetails
                           ))
             .Take(limit > 0 ? limit : 50)
             .ToListAsync();

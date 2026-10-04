@@ -62,6 +62,9 @@
         <button class="nav-tab" data-tab="historial">
           <span>📁</span> Historial & Descargas
         </button>
+        <button class="nav-tab" data-tab="vip">
+          <span>👑</span> Lista VIP
+        </button>
         <button class="nav-tab" data-tab="admin" id="tab-btn-admin" style="display: none;">
           <span>⚙</span> Administración
         </button>
@@ -263,6 +266,38 @@
         </div>
       </section>
 
+      <!-- TAB: LISTA VIP -->
+      <section id="tab-vip" class="tab-pane">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="font-size: 1.25rem; font-weight: 700;">Lista VIP (Protegidos)</h2>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">
+                Las cédulas de esta lista <strong>nunca se bloquean</strong>: si aparecen en un proceso se alertan y se omiten de los archivos exportables (DTU, XLSX y TSV).
+              </p>
+            </div>
+            <button id="btn-vip-new" class="btn btn-primary btn-sm" style="display: none;">+ Agregar VIP</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cédula</th>
+                  <th>Nombre</th>
+                  <th>Creado por</th>
+                  <th>Fecha</th>
+                  <th id="th-vip-acciones">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-vip">
+                <tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-dim);">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- TAB 4: ADMINISTRACIÓN (ADMIN ONLY) -->
       <section id="tab-admin" class="tab-pane">
         <div class="card" style="margin-bottom: 1.5rem;">
@@ -332,6 +367,7 @@
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
+        <div id="preview-vip-warning" style="display:none; margin-bottom: 1rem; background: var(--warning-bg); border: 1px solid var(--warning); border-radius: var(--radius-md); padding: 0.75rem; font-size: 0.85rem; color: var(--warning);"></div>
         <div class="table-container" style="max-height: 400px; overflow-y: auto;">
           <table>
             <thead>
@@ -369,6 +405,7 @@
           <div style="margin-bottom: 0.5rem;"><strong>Estados:</strong> <span id="confirm-estados">--</span></div>
           <div style="margin-bottom: 0.5rem;"><strong>Sociedades:</strong> <span id="confirm-sociedades">--</span></div>
           <div><strong>Formatos:</strong> <span id="confirm-formats">--</span></div>
+          <div id="confirm-vip" style="display:none; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--border-subtle); color: var(--warning);"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -440,6 +477,54 @@
       <div class="modal-footer">
         <button class="btn btn-secondary btn-modal-cancel">Cancelar</button>
         <button id="btn-confirm-clear-jobs" class="btn btn-danger">Sí, Limpiar Historial</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VIP (ALTA/EDICIÓN) -->
+  <div id="modal-vip" class="modal-overlay">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="modal-vip-title" class="modal-title">Agregar VIP</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="form-vip-modal">
+        <div class="modal-body">
+          <input type="hidden" id="modal-vip-id">
+          <div class="form-group">
+            <label class="form-label">Cédula / Documento</label>
+            <input type="text" id="modal-vip-cedula" class="form-control" required maxlength="30" placeholder="Ej: 12345678">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nombre completo</label>
+            <input type="text" id="modal-vip-nombre" class="form-control" required maxlength="150">
+          </div>
+          <div class="card-desc">Esta cédula no se incluirá en el TXT DTU, XLSX ni TSV.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN QUITAR VIP -->
+  <div id="modal-confirm-vip-delete" class="modal-overlay">
+    <div class="modal-content" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Quitar de la Lista VIP</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; margin-bottom: 0.75rem;">¿Quitar a <strong id="confirm-vip-name">--</strong> de la lista VIP?</p>
+        <div style="background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-md); padding: 0.75rem; font-size: 0.8rem; color: var(--danger);">
+          A partir de ahora esta cédula podría bloquearse en ProWatch si coincide con los filtros.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+        <button id="btn-confirm-vip-delete" class="btn btn-danger">Sí, Quitar</button>
       </div>
     </div>
   </div>

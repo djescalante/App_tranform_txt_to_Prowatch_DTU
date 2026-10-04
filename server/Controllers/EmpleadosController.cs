@@ -101,6 +101,47 @@ public class EmpleadosController : ControllerBase
         return result;
     }
 
+    private async Task<Dictionary<string, string>> GetVipMapAsync()
+    {
+        var list = await _db.VipEmployees.AsNoTracking()
+            .Select(v => new { v.Cedula, v.FullName })
+            .ToListAsync();
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var v in list)
+        {
+            var key = v.Cedula.Trim();
+            if (key.Length > 0) map[key] = v.FullName;
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// Separa las coincidencias: las cédulas VIP se omiten (alertadas) y el resto se exporta.
+    /// El cache de escaneo guarda filas crudas, así los cambios de la lista aplican al instante.
+    /// </summary>
+    private static (List<EmpleadoRowDto> Kept, List<VipOmittedRow> Omitted) SplitVip(
+        List<EmpleadoRowDto> rows, Dictionary<string, string> vipMap)
+    {
+        var kept = new List<EmpleadoRowDto>();
+        var omitted = new List<VipOmittedRow>();
+
+        foreach (var row in rows)
+        {
+            var doc = row.Documento.Trim();
+            if (vipMap.TryGetValue(doc, out var name))
+            {
+                omitted.Add(new VipOmittedRow(doc, name));
+            }
+            else
+            {
+                kept.Add(row);
+            }
+        }
+
+        return (kept, omitted);
+    }
+
     [HttpGet("info")]
     public async Task<ActionResult<PadronInfoResponse>> GetPadronInfo()
     {
@@ -199,12 +240,16 @@ public class EmpleadosController : ControllerBase
         try
         {
             var result = GetOrScan(path, req.FechaEvento, req.Sociedades, req.Estados);
+            var vipMap = await GetVipMapAsync();
+            var (kept, omitted) = SplitVip(result.Rows, vipMap);
             int limit = req.Limit > 0 ? req.Limit : 100;
 
             return Ok(new PreviewResponse(
-                result.MatchedCount,
-                result.Rows.Take(limit).ToList(),
-                result.ElapsedMs
+                kept.Count,
+                kept.Take(limit).ToList(),
+                result.ElapsedMs,
+                omitted.Count,
+                omitted
             ));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -246,9 +291,11 @@ public class EmpleadosController : ControllerBase
         try
         {
             var result = GetOrScan(path, req.FechaEvento, req.Sociedades, req.Estados);
+            var vipMap = await GetVipMapAsync();
+            var (kept, omitted) = SplitVip(result.Rows, vipMap);
 
             var exportRes = _exportService.GenerateOutputs(
-                result.Rows,
+                kept,
                 outDir,
                 req.FechaEvento,
                 emitXlsx: req.EmitXlsx,
@@ -265,7 +312,9 @@ public class EmpleadosController : ControllerBase
                 EventDate = req.FechaEvento,
                 SelectedStates = string.Join(", ", req.Estados),
                 SelectedSocieties = string.Join(", ", req.Sociedades),
-                TotalMatchedRows = result.MatchedCount,
+                TotalMatchedRows = kept.Count,
+                VipOmittedCount = omitted.Count,
+                VipOmittedDetails = omitted.Count > 0 ? string.Join(", ", omitted.Select(o => o.Cedula)) : null,
                 ExecutionDurationMs = result.ElapsedMs,
                 DtuFileName = exportRes.DtuFileName,
                 XlsxFileName = exportRes.XlsxFileName,
@@ -276,13 +325,16 @@ public class EmpleadosController : ControllerBase
             _db.ProcessingJobs.Add(job);
             await _db.SaveChangesAsync();
 
+            var vipNote = omitted.Count > 0 ? $" Se omitieron {omitted.Count} cédulas de la lista VIP." : string.Empty;
+
             return Ok(new ProcessResponse(
                 JobId: job.Id,
                 Success: true,
-                TotalCoinciden: result.MatchedCount,
+                TotalCoinciden: kept.Count,
                 ElapsedMs: result.ElapsedMs,
                 FilesGenerated: exportRes.GeneratedFilePaths.Select(Path.GetFileName).ToList()!,
-                Message: $"Proceso completado exitosamente con {result.MatchedCount} registros generados en {result.ElapsedMs} ms."
+                Message: $"Proceso completado exitosamente con {kept.Count} registros generados en {result.ElapsedMs} ms.{vipNote}",
+                VipOmittedCount: omitted.Count
             ));
         }
         catch (Exception ex)
