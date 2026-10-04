@@ -41,6 +41,7 @@ desktop.ini
 .vscode/
 .idea/
 .playwright-mcp/
+.archify/
 
 # =========================================================
 #  .NET & Base de datos local
