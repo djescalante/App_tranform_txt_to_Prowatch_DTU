@@ -43,23 +43,178 @@ function formatDate(dateStr) {
   });
 }
 
-function parseInputDateToDmY(val) {
-  if (!val) return '';
-  // HTML date input gives YYYY-MM-DD
-  const parts = val.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return val;
+// La fecha del evento se maneja como texto dd/mm/aaaa (el formato que espera la API),
+// sin depender del idioma del navegador.
+function parseDmy(val) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((val || '').trim());
+  if (!m) return null;
+  const day = Number(m[1]), month = Number(m[2]) - 1, year = Number(m[3]);
+  const d = new Date(year, month, day);
+  // Rechaza fechas inexistentes como 31/02/2026.
+  if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+  return d;
 }
 
-function dmyToInputDate(dmy) {
-  if (!dmy) return '';
-  const parts = dmy.split('/');
-  if (parts.length === 3) {
-    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+function formatDmy(date) {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${date.getFullYear()}`;
+}
+
+// Devuelve la fecha normalizada (dd/mm/aaaa) o '' si es inválida.
+function parseInputDateToDmY(val) {
+  const d = parseDmy(val);
+  return d ? formatDmy(d) : '';
+}
+
+function readEventDate() {
+  const input = document.getElementById('input-fecha-evento');
+  const dmy = parseInputDateToDmY(input.value);
+  if (!dmy) {
+    input.classList.add('is-invalid');
+    showToast(input.value.trim()
+      ? 'Fecha inválida. Use el formato dd/mm/aaaa.'
+      : 'Seleccione una fecha de evento.', 'error');
+    return '';
   }
-  return '';
+  input.value = dmy;
+  input.classList.remove('is-invalid');
+  return dmy;
+}
+
+function setEventDate(dmy) {
+  const input = document.getElementById('input-fecha-evento');
+  input.value = dmy || '';
+  input.classList.remove('is-invalid');
+}
+
+// --- Date Picker (calendario propio: el <input type="date"> nativo muestra el
+// formato del navegador y su ícono no se ve en el tema oscuro) ---
+const DP_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+  'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const DP_WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
+
+function initDatePicker(rootId) {
+  const root = document.getElementById(rootId);
+  const input = root.querySelector('input');
+  const toggle = root.querySelector('[data-dp-toggle]');
+  const popup = root.querySelector('.datepicker-popup');
+  let viewYear, viewMonth;
+
+  function render() {
+    const selected = parseDmy(input.value);
+    const todayStr = formatDmy(new Date());
+    const selectedStr = selected ? formatDmy(selected) : '';
+    // La semana empieza el lunes.
+    const first = new Date(viewYear, viewMonth, 1);
+    const start = new Date(viewYear, viewMonth, 1 - ((first.getDay() + 6) % 7));
+
+    let html = `
+      <div class="dp-header">
+        <button type="button" class="dp-nav" data-dp-nav="-1" aria-label="Mes anterior">&#8249;</button>
+        <span class="dp-title">${DP_MONTHS[viewMonth]} ${viewYear}</span>
+        <button type="button" class="dp-nav" data-dp-nav="1" aria-label="Mes siguiente">&#8250;</button>
+      </div>
+      <div class="dp-grid">`;
+    html += DP_WEEKDAYS.map(w => `<span class="dp-weekday">${w}</span>`).join('');
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const dmy = formatDmy(d);
+      const cls = ['dp-day'];
+      if (d.getMonth() !== viewMonth) cls.push('is-other-month');
+      if (dmy === todayStr) cls.push('is-today');
+      if (dmy === selectedStr) cls.push('is-selected');
+      html += `<button type="button" class="${cls.join(' ')}" data-dp-date="${dmy}"
+        aria-label="${d.getDate()} de ${DP_MONTHS[d.getMonth()]} de ${d.getFullYear()}"
+        ${dmy === selectedStr ? 'aria-pressed="true"' : ''}>${d.getDate()}</button>`;
+    }
+    html += '</div>';
+    popup.innerHTML = html;
+  }
+
+  function open() {
+    const base = parseDmy(input.value) || new Date();
+    viewYear = base.getFullYear();
+    viewMonth = base.getMonth();
+    render();
+    popup.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    (popup.querySelector('.is-selected') || popup.querySelector('.is-today') || popup.querySelector('.dp-day')).focus();
+  }
+
+  function close(returnFocus) {
+    if (popup.hidden) return;
+    popup.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    if (returnFocus) toggle.focus();
+  }
+
+  toggle.addEventListener('click', () => (popup.hidden ? open() : close(true)));
+
+  popup.addEventListener('click', (e) => {
+    const nav = e.target.closest('[data-dp-nav]');
+    if (nav) {
+      const d = new Date(viewYear, viewMonth + Number(nav.dataset.dpNav), 1);
+      viewYear = d.getFullYear();
+      viewMonth = d.getMonth();
+      render();
+      popup.querySelector(`[data-dp-nav="${nav.dataset.dpNav}"]`).focus();
+      return;
+    }
+    const day = e.target.closest('[data-dp-date]');
+    if (day) {
+      setEventDate(day.dataset.dpDate);
+      close(false);
+      input.focus();
+    }
+  });
+
+  // Teclado: flechas para moverse por los días, Escape para cerrar.
+  popup.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
+    const steps = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+    const current = e.target.closest('[data-dp-date]');
+    if (!current || !(e.key in steps)) return;
+    e.preventDefault();
+    const d = parseDmy(current.dataset.dpDate);
+    d.setDate(d.getDate() + steps[e.key]);
+    if (d.getMonth() !== viewMonth || d.getFullYear() !== viewYear) {
+      viewYear = d.getFullYear();
+      viewMonth = d.getMonth();
+      render();
+    }
+    popup.querySelector(`[data-dp-date="${formatDmy(d)}"]`)?.focus();
+  });
+
+  // composedPath (calculado al despachar el evento) porque render() reemplaza el
+  // botón pulsado y e.target ya no estaría dentro de root.
+  document.addEventListener('click', (e) => {
+    if (!e.composedPath().includes(root)) close(false);
+  });
+
+  // Escritura manual: solo dígitos y las barras se agregan solas (dd/mm/aaaa).
+  input.addEventListener('input', (e) => {
+    if (e.inputType && e.inputType.startsWith('delete')) return;
+    const digits = input.value.replace(/\D/g, '').slice(0, 8);
+    let out = digits.slice(0, 2);
+    if (digits.length > 2) out += '/' + digits.slice(2, 4);
+    if (digits.length > 4) out += '/' + digits.slice(4);
+    if (digits.length === 2 || digits.length === 4) out += '/';
+    input.value = out;
+    input.classList.remove('is-invalid');
+  });
+
+  input.addEventListener('blur', () => {
+    if (!input.value.trim()) return;
+    const dmy = parseInputDateToDmY(input.value);
+    if (dmy) input.value = dmy;
+    input.classList.toggle('is-invalid', !dmy);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && e.altKey) { e.preventDefault(); open(); }
+    if (e.key === 'Escape') close(false);
+  });
 }
 
 function escapeHtml(value) {
@@ -230,15 +385,17 @@ function initEventListeners() {
   document.getElementById('btn-goto-history')?.addEventListener('click', () => switchTab('historial'));
 
   // Quick Date suggestions
+  initDatePicker('dp-fecha-evento');
+
   document.getElementById('btn-date-suggested').addEventListener('click', () => {
     if (state.padronInfo?.suggestedDate) {
-      document.getElementById('input-fecha-evento').value = dmyToInputDate(state.padronInfo.suggestedDate);
+      setEventDate(state.padronInfo.suggestedDate);
     }
   });
 
   document.getElementById('btn-date-today').addEventListener('click', () => {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('input-fecha-evento').value = today;
+    // Fecha local (toISOString daria el dia UTC: manana despues de las 7 p. m. en Colombia).
+    setEventDate(formatDmy(new Date()));
   });
 
   // Society quick buttons
@@ -398,7 +555,7 @@ function renderFilterChips() {
   // Set default suggested date in input if empty
   const dateInput = document.getElementById('input-fecha-evento');
   if (!dateInput.value && state.padronInfo?.suggestedDate) {
-    dateInput.value = dmyToInputDate(state.padronInfo.suggestedDate);
+    setEventDate(state.padronInfo.suggestedDate);
   }
 }
 
@@ -474,11 +631,8 @@ async function loadDashboard() {
 
 // --- Preview Execution ---
 async function onGeneratePreview() {
-  const dmy = parseInputDateToDmY(document.getElementById('input-fecha-evento').value);
-  if (!dmy) {
-    showToast('Seleccione una fecha de evento.', 'error');
-    return;
-  }
+  const dmy = readEventDate();
+  if (!dmy) return;
   if (state.selectedEstados.size === 0) {
     showToast('Seleccione al menos un estado.', 'error');
     return;
@@ -543,11 +697,8 @@ async function onGeneratePreview() {
 
 // --- Process Confirmation and Execution ---
 async function onOpenConfirmProcess() {
-  const dmy = parseInputDateToDmY(document.getElementById('input-fecha-evento').value);
-  if (!dmy) {
-    showToast('Seleccione una fecha de evento.', 'error');
-    return;
-  }
+  const dmy = readEventDate();
+  if (!dmy) return;
   if (state.selectedEstados.size === 0) {
     showToast('Seleccione al menos un estado.', 'error');
     return;

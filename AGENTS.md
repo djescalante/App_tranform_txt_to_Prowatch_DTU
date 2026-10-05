@@ -42,7 +42,7 @@ con login, historial y descargas.
   SQLite (`usuarios_retirados.db`, ignorada) y descargas.
 - `server\README.md` — arquitectura, API, configuración, TLS y despliegue.
 - `server\app\estructura.json` — base de estructura esperada (nombres+orden de columnas).
-- `server\Iniciar-Servidor.cmd` — lanzador de desarrollo (`https://localhost:5001`, TLS 1.3); usa
+- `server\Iniciar-Servidor.cmd` — lanzador de desarrollo (`https://localhost`, TLS 1.3); usa
   el SDK x64 explícito y lee la contraseña del PFX desde `server\certs\pfx-password.txt`.
 - `server\Instalar-Servicio.ps1` — publica y registra el servicio Windows (escribe `Jwt__Secret` y
   `Kestrel__Endpoints__Https__*` en el registro del servicio).
@@ -56,9 +56,9 @@ con login, historial y descargas.
   `Iniciar-Servidor.cmd` ya lo resuelve.
 - **Producción exige secreto JWT**: `Jwt__Secret` (env var o variable del servicio). Sin él la app
   no arranca (fail-fast). En Development lo toma de `appsettings.Development.json`.
-- **Solo HTTPS / TLS 1.3**: Kestrel escucha únicamente `https://0.0.0.0:5001` con
+- **Solo HTTPS / TLS 1.3**: Kestrel escucha únicamente `https://0.0.0.0:443` con
   `SslProtocols=Tls13` (TLS 1.2 rechazado). El PFX vive en `server\certs\` (ignorado; contraseña en
-  `pfx-password.txt` o `Kestrel__Endpoints__Https__CertPassword`). No reintroducir HTTP ni `Urls`.
+  `pfx-password.txt` o `Kestrel__Endpoints__Https__Certificate__Password`). No reintroducir HTTP ni `Urls`.
 - **CSP estricto**: la SPA no debe usar handlers inline (`onclick=`) ni recursos externos
   (fuentes/CDN); usar `data-*` + listeners delegados. `SecurityHeadersMiddleware` aplica HSTS, CSP,
   nosniff, frame-deny, etc., y Kestrel oculta el header `Server`.

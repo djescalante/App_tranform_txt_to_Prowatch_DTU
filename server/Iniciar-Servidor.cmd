@@ -6,7 +6,7 @@ echo ============================================================
 echo   Iniciando Usuarios Retirados DTU - Servidor Web (HTTPS)
 echo ============================================================
 echo.
-echo URL de acceso local: https://localhost:5001
+echo URL de acceso local: https://localhost
 echo (Certificado autofirmado: el navegador puede pedir confirmacion)
 echo.
 echo Presione Ctrl+C para detener el servidor.
@@ -22,9 +22,9 @@ rem Perfil Development: toma el secreto JWT de appsettings.Development.json.
 set ASPNETCORE_ENVIRONMENT=Development
 
 rem Password del PFX (server\certs\pfx-password.txt, no versionado).
-set "Kestrel__Endpoints__Https__CertPassword="
-if exist "certs\pfx-password.txt" set /p Kestrel__Endpoints__Https__CertPassword=<certs\pfx-password.txt
-if not defined Kestrel__Endpoints__Https__CertPassword (
+set "Kestrel__Endpoints__Https__Certificate__Password="
+if exist "certs\pfx-password.txt" set /p Kestrel__Endpoints__Https__Certificate__Password=<certs\pfx-password.txt
+if not defined Kestrel__Endpoints__Https__Certificate__Password (
     echo ADVERTENCIA: no se encontro certs\pfx-password.txt.
     echo Genere el certificado con el comando documentado en server\README.md.
     echo.

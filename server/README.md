@@ -18,7 +18,7 @@ descargas desde el navegador.
 | `Services/JwtService.cs` | Emite JWT HS256 (7 días) |
 | `Controllers/` | `Auth`, `Empleados`, `Jobs`, `Admin` |
 | `wwwroot/` | SPA vanilla (login, dashboard, proceso, historial, administración) |
-| `Iniciar-Servidor.cmd` | Lanzador de desarrollo (SDK x64, `https://localhost:5001`, TLS 1.3) |
+| `Iniciar-Servidor.cmd` | Lanzador de desarrollo (SDK x64, `https://localhost`, TLS 1.3) |
 | `Instalar-Servicio.ps1` | Publica e instala como servicio Windows con `Jwt__Secret` y certificado TLS propios |
 
 ## Requisitos
@@ -31,16 +31,16 @@ descargas desde el navegador.
 ## Ejecución (desarrollo)
 
 ```powershell
-.\Iniciar-Servidor.cmd          # HTTPS https://localhost:5001 (lee certs\pfx-password.txt)
+.\Iniciar-Servidor.cmd          # HTTPS https://localhost (lee certs\pfx-password.txt)
 # o bien:
-$env:Kestrel__Endpoints__Https__CertPassword = (Get-Content .\certs\pfx-password.txt -Raw).Trim()
+$env:Kestrel__Endpoints__Https__Certificate__Password = (Get-Content .\certs\pfx-password.txt -Raw).Trim()
 & "C:\Program Files\dotnet\dotnet.exe" run --project server --no-launch-profile
 ```
 
 `Iniciar-Servidor.cmd` define `ASPNETCORE_ENVIRONMENT=Development`, que toma el
 secreto JWT de `appsettings.Development.json`. En Production el secreto es
 obligatorio vía `Jwt__Secret` (si falta, la app no arranca a propósito).
-El server **solo escucha HTTPS en el puerto 5001**; no hay HTTP.
+El server **solo escucha HTTPS en el puerto 443**; no hay HTTP.
 
 ## Configuración
 
@@ -53,12 +53,12 @@ El server **solo escucha HTTPS en el puerto 5001**; no hay HTTP.
 | `Cors:AllowedOrigins` | `[]` = mismo origen (recomendado); `["*"]` = cualquiera; o lista de orígenes |
 | `AppPaths:InputPath` | Ruta por defecto del padrón (editable en Administración) |
 | `AppPaths:OutputDir` | Carpeta por defecto de salidas (editable en Administración) |
-| `Kestrel:Endpoints:Https:Url` | `https://0.0.0.0:5001` (único listener) |
-| `Kestrel:Endpoints:Https:CertPath` | Ruta del PFX (`certs/server.pfx`) |
+| `Kestrel:Endpoints:Https:Url` | `https://0.0.0.0:443` (único listener) |
+| `Kestrel:Endpoints:Https:Certificate:Path` | Ruta del PFX (`certs/server.pfx`) |
 | `Kestrel:Endpoints:Https:SslProtocols` | `["Tls13"]` (TLS 1.2 y anteriores rechazados) |
 
 Overrides por variable de entorno (doble guion bajo): `Jwt__Secret`,
-`Kestrel__Endpoints__Https__CertPassword`, `ConnectionStrings__DefaultConnection`,
+`Kestrel__Endpoints__Https__Certificate__Password`, `ConnectionStrings__DefaultConnection`,
 `AppPaths__InputPath`, etc. Las rutas en ejecución se guardan en la tabla
 `AppConfigs` (las edita un Admin).
 
@@ -81,7 +81,7 @@ Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)"
 ```
 
 - La contraseña del PFX se lee de `certs\pfx-password.txt` (launcher) o de
-  `Kestrel__Endpoints__Https__CertPassword` (servicio/entorno). **No se versiona.**
+  `Kestrel__Endpoints__Https__Certificate__Password` (servicio/entorno). **No se versiona.**
 - Para que los equipos de la LAN confíen en el certificado, importar
   `certs\server.cer` en `Cert:\LocalMachine\Root` de cada cliente (o aceptar la
   advertencia una vez). Alternativa recomendada en dominio: emitir el cert con AD CS.
@@ -103,7 +103,7 @@ Los instaladores de .NET 10 para el servidor están en `prerequisitos\` (ver
 
 ```powershell
 # Ejecutar en PowerShell como Administrador
-.\Instalar-Servicio.ps1 -Action Install -Port 5001
+.\Instalar-Servicio.ps1 -Action Install -Port 443
 ```
 
 - Publica en `server\publish` (framework-dependent) y copia el PFX a `publish\certs`.

@@ -52,3 +52,6 @@ desktop.ini
 *.db
 *.db-shm
 *.db-wal
+
+# Paquetes de despliegue generados por server/Crear-Paquete.ps1
+paquete/

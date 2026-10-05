@@ -14,8 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService();
 
 // Kestrel: HTTPS-only endpoint from configuration, TLS 1.3 enforced.
-// Certificate can be a PFX (CertPath + CertPassword) or a Windows store cert
-// (CertThumbprint). Password comes from Kestrel__Endpoints__Https__CertPassword.
+// Certificate: PFX via Kestrel:Endpoints:Https:Certificate:Path + :Password
+// (password from env var Kestrel__Endpoints__Https__Certificate__Password).
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
     options.Configure(context.Configuration.GetSection("Kestrel"));

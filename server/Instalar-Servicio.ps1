@@ -21,7 +21,7 @@ param(
     [string]$Action = 'Install',
     [string]$ServiceName = 'UsuariosRetiradosDTU',
     [string]$DisplayName = 'Usuarios Retirados DTU - Servicio Web',
-    [int]$Port = 5001,
+    [int]$Port = 443,
     [string]$JwtSecret,
     [string]$CertPath,
     [string]$CertPassword
@@ -111,8 +111,8 @@ if ($Action -eq 'Install') {
         "Jwt__Secret=$JwtSecret",
         "ASPNETCORE_ENVIRONMENT=Production",
         "Kestrel__Endpoints__Https__Url=https://0.0.0.0:$Port",
-        "Kestrel__Endpoints__Https__CertPath=$serviceCertPath",
-        "Kestrel__Endpoints__Https__CertPassword=$CertPassword"
+        "Kestrel__Endpoints__Https__Certificate__Path=$serviceCertPath",
+        "Kestrel__Endpoints__Https__Certificate__Password=$CertPassword"
     ) | Out-Null
 
     # Recovery actions

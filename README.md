@@ -16,7 +16,7 @@ TLS 1.3**.
 .\server\Iniciar-Servidor.cmd
 ```
 
-- URL: **https://localhost:5001** (certificado autofirmado: aceptar la advertencia una vez).
+- URL: **https://localhost** (certificado autofirmado: aceptar la advertencia una vez).
 - Credenciales seed: `admin / Admin123!` y `operador1..5 / Operador123!` (**cambiarlas**).
 
 Despliegue como servicio Windows: ver `server/README.md` e `Instalar-Servicio.ps1`.
@@ -28,7 +28,7 @@ Despliegue como servicio Windows: ver `server/README.md` e `Instalar-Servicio.ps
 | | |
 |---|---|
 | **App web** | ASP.NET Core 10 (API REST + SPA), login JWT + BCrypt |
-| **HTTPS / TLS 1.3** | Kestrel solo HTTPS en el puerto 5001; TLS 1.2 rechazado |
+| **HTTPS / TLS 1.3** | Kestrel solo HTTPS en el puerto 443; TLS 1.2 rechazado |
 | **Historial** | Cada proceso queda en SQLite con usuario, filtros, filas y descargas |
 | **Descargas** | DTU / XLSX / TSV desde el navegador, con auditoría |
 | **Sin Excel** | El XLSX se genera con ClosedXML en el servidor |
@@ -59,7 +59,7 @@ empleados/
 │   ├── Controllers/ Services/  API y lógica (parser, export, cache, TLS)
 │   ├── wwwroot/                SPA (login, dashboard, proceso, historial, admin)
 │   ├── certs/                  PFX + contraseña (ignorados por git)
-│   ├── Iniciar-Servidor.cmd    lanzador de desarrollo (HTTPS 5001)
+│   ├── Iniciar-Servidor.cmd    lanzador de desarrollo (HTTPS 443)
 │   └── Instalar-Servicio.ps1   registro como servicio Windows
 ├── prerequisitos/              instaladores .NET 10 (binarios ignorados)
 ├── salidas/                    artefactos generados (ignorados por git)

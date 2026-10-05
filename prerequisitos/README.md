@@ -68,11 +68,11 @@ dotnet --list-runtimes    # debe aparecer Microsoft.AspNetCore.App 10.0.x
    generar un certificado nuevo en el servidor (ver `server\README.md`).
 4. Instalar el SDK o el Runtime (según el escenario de la tabla de arriba).
 5. Abrir el puerto HTTPS en el firewall:
-   `New-NetFirewallRule -DisplayName "UsuariosRetiradosDTU 5001" -Direction Inbound -Protocol TCP -LocalPort 5001 -Action Allow`
+   `New-NetFirewallRule -DisplayName "UsuariosRetiradosDTU 443" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow`
 6. Registrar el servicio:
-   `.\server\Instalar-Servicio.ps1 -Action Install -Port 5001`
+   `.\server\Instalar-Servicio.ps1 -Action Install -Port 443`
    (genera `Jwt__Secret`, configura Kestrel y copia el PFX a `publish\certs`).
 7. Distribuir `server\certs\server.cer` a los equipos cliente e importarlo en
    `Cert:\LocalMachine\Root` para evitar la advertencia de certificado.
-8. Verificar: `https://<servidor>:5001` y login con las credenciales seed
+8. Verificar: `https://<servidor>` y login con las credenciales seed
    (**cambiarlas de inmediato**).

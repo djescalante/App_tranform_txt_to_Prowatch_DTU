@@ -1,4 +1,4 @@
-@host = https://localhost:5001
+@host = https://localhost
 @token = PEGAR_TOKEN_DEL_LOGIN_AQUI
 
 ### Login (copiar el token de la respuesta)
