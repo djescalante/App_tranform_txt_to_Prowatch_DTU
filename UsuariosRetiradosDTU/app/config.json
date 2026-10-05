@@ -1,0 +1,12 @@
+﻿{
+    "InputPath":  "D:\\Prowatch Eventos\\Empleados.txt",
+    "OutputDir":  "D:\\Prowatch Eventos\\empleados\\UsuariosRetiradosDTU\\salidas",
+    "Estados":  [
+                    "Terminated"
+                ],
+    "Sociedades":  [
+                       "BANCOLOMBIA"
+                   ],
+    "MostrarResumenExport":  true,
+    "LastUpdate":  "2026-10-01T09:46:32"
+}
