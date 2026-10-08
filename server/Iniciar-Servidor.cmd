@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 echo ============================================================
-echo   Iniciando Usuarios Retirados DTU - Servidor Web (HTTPS)
+echo   Iniciando PW Extended App - Servidor Web (HTTPS)
 echo ============================================================
 echo.
 echo URL de acceso local: https://localhost

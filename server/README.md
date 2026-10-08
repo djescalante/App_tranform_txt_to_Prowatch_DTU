@@ -1,4 +1,4 @@
-# Usuarios Retirados DTU — Servidor Web (.NET 10)
+# PW Extended App — Servidor Web (.NET 10)
 
 App web cliente-servidor que reemplaza a la herramienta PowerShell original (retirada): filtra el
 padrón `Empleados.txt` y genera los insumos para ProWatch DTU, con login, historial de procesos y
@@ -10,14 +10,15 @@ descargas desde el navegador.
 |---|---|
 | `Program.cs` | Host ASP.NET Core: SQLite/EF Core, JWT, CORS, estáticos y seed inicial |
 | `Data/AppDbContext.cs` | Tablas `Users`, `ProcessingJobs` (auditoría), `AppConfigs` |
-| `Services/CsvStreamingEngine.cs` | Lectura Windows-1252 con `TextFieldParser` y filtros (ESTADO, DOCUMENTO, NOMBRE SOCIEDAD, FECHA EVENTO) |
+| `Services/CsvStreamingEngine.cs` | Lectura Windows-1252 con `TextFieldParser` y filtros (ESTADO, DOCUMENTO, NOMBRE SOCIEDAD, FECHA EVENTO; nombre y apellido para vista previa y XLSX) |
 | `Services/ExportService.cs` | Genera TXT DTU, TSV y XLSX (ClosedXML, sin Excel instalado) |
 | `Services/SchemaValidator.cs` | Valida encabezado contra `estructura.json` |
 | `Services/ScanCache.cs` | Cache 5 min del último escaneo (evita doble pasada preview+process) |
 | `Services/AppPaths.cs` | Resuelve `estructura.json` y `salidas\` desde repo, publish o servicio |
 | `Services/JwtService.cs` | Emite JWT HS256 (7 días) |
-| `Controllers/` | `Auth`, `Empleados`, `Jobs`, `Admin` |
-| `wwwroot/` | SPA vanilla (login, dashboard, proceso, historial, administración) |
+| `Services/Ocupacion/` | Módulo Ocupación Edificios: `prowatch.db`, carga de Excel, consultas, export |
+| `Controllers/` | `Auth`, `Empleados`, `Jobs`, `Admin`, `Vip`, `Ocupacion` |
+| `wwwroot/` | SPA vanilla con menú por módulos (`app.js` = carcasa + DTU, `ocupacion.js`) |
 | `Iniciar-Servidor.cmd` | Lanzador de desarrollo (SDK x64, `https://localhost`, TLS 1.3) |
 | `Instalar-Servicio.ps1` | Publica e instala como servicio Windows con `Jwt__Secret` y certificado TLS propios |
 
@@ -48,7 +49,8 @@ El server **solo escucha HTTPS en el puerto 443**; no hay HTTP.
 
 | Clave | Uso |
 |---|---|
-| `ConnectionStrings:DefaultConnection` | SQLite (`Data Source=usuarios_retirados.db`) |
+| `ConnectionStrings:DefaultConnection` | SQLite de usuarios/historial/VIP (el servicio usa `<repo>\data\usuarios_retirados.db`) |
+| `Ocupacion:DbPath` | `prowatch.db` de Ocupación Edificios (relativa a la app o absoluta) |
 | `Jwt:Issuer` / `Jwt:Audience` | Validación del token |
 | `Cors:AllowedOrigins` | `[]` = mismo origen (recomendado); `["*"]` = cualquiera; o lista de orígenes |
 | `AppPaths:InputPath` | Ruta por defecto del padrón (editable en Administración) |
@@ -130,11 +132,18 @@ Las descargas aceptan además `?token=` (necesario para `<a href>`).
 | `POST /api/empleados/process` | auth | Filtra, exporta y registra el job |
 | `GET /api/jobs?limit=N` | auth | Historial de procesos |
 | `GET /api/jobs/{id}/download/{dtu\|xlsx\|tsv}` | auth | Descarga la salida |
-| `GET/POST/PUT /api/admin/users` | Admin | Gestión de usuarios |
+| `GET/POST/PUT/DELETE /api/admin/users` | Admin | Gestión de usuarios (nadie puede eliminarse a sí mismo; el admin principal `admin` no se elimina, desactiva ni pierde el rol Admin; el historial se conserva) |
 | `POST /api/admin/jobs/clear` | Admin | Elimina los registros del historial de procesos (no borra archivos en disco) |
 | `GET/POST /api/admin/config` | Admin | Rutas del padrón/salidas |
 | `GET /api/vip` | auth | Lista VIP (cédulas protegidas) |
 | `POST/PUT/DELETE /api/vip` | Admin | Alta, edición y baja de la lista VIP |
+| `GET /api/ocupacion/stats` | auth | KPIs y series del dashboard (filtros opcionales) |
+| `GET /api/ocupacion/filtros` | auth | Empresas, ciudades, sedes y paneles |
+| `GET /api/ocupacion/registros` | auth | Consulta paginada (`page`, `perPage` ≤ 500, `sort`, `order`) |
+| `GET /api/ocupacion/export?formato=xlsx\|csv` | auth | Exporta la consulta (máx. 500.000 filas) |
+| `POST /api/ocupacion/upload` | Admin | Sube uno o varios Excel (multipart `files`, hasta 500 MB) |
+| `GET /api/ocupacion/archivos` | auth | Archivos cargados |
+| `DELETE /api/ocupacion/archivos/{id}` | Admin | Elimina un archivo y sus registros |
 
 Ejemplos listos para usar en `UsuariosRetirados.Server.http`.
 
@@ -189,3 +198,24 @@ con y sin tilde), sociedades `TODAS` (50 filas) y 0 coincidencias.
 `Empleados.txt`, las salidas (`Usuarios Retirados*`, `Usuarios Retirados DTU al*`),
 `server/usuarios_retirados.db*` y `server/publish/` están excluidos por `.gitignore`.
 **No commitear PII.**
+
+## Módulo Ocupación Edificios
+
+Consulta de las marcaciones diarias de ProWatch (reportes Excel "Ocupación Edificios").
+Migrado desde una app Python/FastAPI (retirada) con la misma funcionalidad. En desarrollo la base
+vive en `<repo>\data\prowatch.db` (ignorada por git), igual que la del servicio instalado desde el repo.
+
+- **Base aparte**: `prowatch.db` (SQLite, ~800 MB, ~1,85 M registros, mismo esquema que la app
+  Python, así que se usa tal cual). Ruta en `Ocupacion:DbPath` (env `Ocupacion__DbPath`); si no
+  existe, se crea vacía al arrancar.
+- **Carga** (`OcupacionIngest.cs`): port 1:1 de `ingest.py`. Busca el encabezado (`Nombres` +
+  `Cedula`) en las primeras 30 filas, usa la hoja `Sheet1` (o la primera), convierte las celdas como
+  openpyxl y calcula el mismo `fingerprint` SHA-1, de modo que la deduplicación sigue funcionando
+  sobre los registros ya cargados. Un Excel con el mismo SHA-256 se omite (`ya_cargado`).
+  Paridad verificada con 10 archivos de todas las variantes: mismas huellas, fechas y conteos.
+- **Dashboard**: KPIs, marcaciones por día, top empresas/ciudades/cédulas, con filtro de fechas.
+  Se cachea y se invalida al cargar o borrar archivos; al arrancar se precalcula sin filtros
+  (~20 s en segundo plano, `OcupacionWarmup`).
+- **Consulta**: filtros por fechas, empresa, ciudad, sede, panel, cédula y nombre; paginación,
+  orden por columna y exportación a XLSX (streaming, hasta 500.000 filas) o CSV (`;`, BOM UTF-8).
+- **Permisos**: consultar y exportar cualquier usuario; cargar y borrar archivos solo Admin.

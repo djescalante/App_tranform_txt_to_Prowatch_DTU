@@ -27,8 +27,16 @@ builder.WebHost.ConfigureKestrel((context, options) =>
 });
 
 // Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-                       ?? "Data Source=usuarios_retirados.db";
+// Una ruta relativa se resuelve contra la carpeta de la app (no contra el directorio
+// actual: como servicio de Windows sería C:\Windows\System32).
+var dbBuilder = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(
+    builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=usuarios_retirados.db");
+if (!Path.IsPathRooted(dbBuilder.DataSource))
+{
+    dbBuilder.DataSource = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, dbBuilder.DataSource));
+}
+Directory.CreateDirectory(Path.GetDirectoryName(dbBuilder.DataSource)!);
+var connectionString = dbBuilder.ToString();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(connectionString));
 
@@ -39,6 +47,11 @@ builder.Services.AddSingleton<ISchemaValidator, SchemaValidator>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IScanCache, ScanCache>();
+
+// Módulo Ocupación Edificios (base aparte: prowatch.db)
+builder.Services.AddSingleton<UsuariosRetirados.Server.Services.Ocupacion.OcupacionStore>();
+builder.Services.AddSingleton<UsuariosRetirados.Server.Services.Ocupacion.OcupacionService>();
+builder.Services.AddHostedService<UsuariosRetirados.Server.Services.Ocupacion.OcupacionWarmup>();
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"];
@@ -79,6 +92,20 @@ builder.Services.AddAuthentication(options =>
                 context.Token = accessToken;
             }
             return Task.CompletedTask;
+        },
+        // El token dura 7 días: se rechaza si, después de iniciar sesión, el usuario
+        // fue eliminado, desactivado o le cambiaron el rol.
+        OnTokenValidated = async context =>
+        {
+            var idClaim = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var roleClaim = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var valid = int.TryParse(idClaim, out var userId) &&
+                        await db.Users.AnyAsync(u => u.Id == userId && u.IsActive && u.Role == roleClaim);
+            if (!valid)
+            {
+                context.Fail("Usuario eliminado, inactivo o con rol modificado.");
+            }
         }
     };
 });

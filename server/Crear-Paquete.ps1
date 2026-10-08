@@ -22,14 +22,15 @@ $runtimeSha256 = 'E5D20698EA8CDDA55BCF8D6151D5B65097761506A1D8ED9AF39910CFC956E5
 $runtimeUrl = "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/10.0.12/$runtimeName"
 
 $stamp = Get-Date -Format 'yyyy-MM-dd'
-$pkgName = "UsuariosRetiradosDTU_$stamp"
+$pkgName = "PWExtendedApp_$stamp"
 $pkgDir = Join-Path $OutputRoot $pkgName
 $zipPath = "$pkgDir.zip"
 
 # No borrar un paquete que esta instalado como servicio (tiene certs\ y data\ propios).
-$svc = Get-CimInstance Win32_Service -Filter "Name='UsuariosRetiradosDTU'" -ErrorAction SilentlyContinue
-if ($svc -and $svc.PathName -like "*$pkgDir*") {
-    throw "El servicio UsuariosRetiradosDTU corre desde '$pkgDir'. Desinstalelo o use otro -OutputRoot."
+$svc = Get-CimInstance Win32_Service -Filter "Name='PWExtendedApp' OR Name='UsuariosRetiradosDTU'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.PathName -like "*$pkgDir*" } | Select-Object -First 1
+if ($svc) {
+    throw "El servicio $($svc.Name) corre desde '$pkgDir'. Desinstalelo o use otro -OutputRoot."
 }
 
 if (Test-Path $pkgDir) { Remove-Item -LiteralPath $pkgDir -Recurse -Force }

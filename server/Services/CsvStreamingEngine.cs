@@ -126,6 +126,8 @@ public class CsvStreamingEngine : ICsvStreamingEngine
         }
 
         int colEstado = -1, colDoc = -1, colSoc = -1, colFecha = -1;
+        // Opcionales: si el padrón no las trae, la fila sale con nombre vacío.
+        int colNombre = -1, colApellido = -1;
 
         for (int i = 0; i < headerFields.Length; i++)
         {
@@ -134,6 +136,8 @@ public class CsvStreamingEngine : ICsvStreamingEngine
             else if (colDoc == -1 && string.Equals(name, "DOCUMENTO", StringComparison.OrdinalIgnoreCase)) colDoc = i;
             else if (colSoc == -1 && string.Equals(name, "NOMBRE SOCIEDAD", StringComparison.OrdinalIgnoreCase)) colSoc = i;
             else if (colFecha == -1 && string.Equals(name, "FECHA EVENTO", StringComparison.OrdinalIgnoreCase)) colFecha = i;
+            else if (colNombre == -1 && string.Equals(name, "NOMBRE EMPLEADO", StringComparison.OrdinalIgnoreCase)) colNombre = i;
+            else if (colApellido == -1 && string.Equals(name, "APELLIDO EMPLEADO", StringComparison.OrdinalIgnoreCase)) colApellido = i;
         }
 
         if (colEstado == -1 || colDoc == -1 || colSoc == -1 || colFecha == -1)
@@ -175,11 +179,15 @@ public class CsvStreamingEngine : ICsvStreamingEngine
 
             if (maxCollect <= 0 || matchedRows.Count < maxCollect)
             {
-                matchedRows.Add(new EmpleadoRowDto(estado, fields[colDoc].Trim(), soc, fecha));
+                matchedRows.Add(new EmpleadoRowDto(estado, fields[colDoc].Trim(), soc, fecha,
+                    OptionalField(fields, colNombre), OptionalField(fields, colApellido)));
             }
         }
 
         sw.Stop();
         return new FilterResult(totalRows, malformed, matchedCount, matchedRows, sw.ElapsedMilliseconds);
     }
+
+    private static string OptionalField(string[] fields, int index) =>
+        index >= 0 && index < fields.Length ? fields[index].Trim() : string.Empty;
 }

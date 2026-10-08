@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,8 @@ public class AdminController : ControllerBase
     {
         var users = await _db.Users
             .OrderBy(u => u.Id)
-            .Select(u => new UserDto(u.Id, u.Username, u.FullName, u.Role, u.IsActive, u.CreatedAt, u.LastLoginAt))
+            .Select(u => new UserDto(u.Id, u.Username, u.FullName, u.Role, u.IsActive, u.CreatedAt, u.LastLoginAt,
+                u.Username.ToLower() == Models.User.PrincipalAdminUsername))
             .ToListAsync();
 
         return Ok(users);
@@ -91,8 +93,14 @@ public class AdminController : ControllerBase
             return BadRequest(new { message = "La contraseña debe tener al menos 8 caracteres." });
         }
 
+        var newRole = string.Equals(req.Role, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Operator";
+        if (IsPrincipal(user) && (newRole != "Admin" || !req.IsActive))
+        {
+            return BadRequest(new { message = "El administrador principal debe seguir activo y con rol Admin." });
+        }
+
         user.FullName = req.FullName.Trim();
-        user.Role = string.Equals(req.Role, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Operator";
+        user.Role = newRole;
         user.IsActive = req.IsActive;
 
         if (!string.IsNullOrWhiteSpace(req.Password))
@@ -101,8 +109,37 @@ public class AdminController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return Ok(new UserDto(user.Id, user.Username, user.FullName, user.Role, user.IsActive, user.CreatedAt, user.LastLoginAt));
+        return Ok(new UserDto(user.Id, user.Username, user.FullName, user.Role, user.IsActive, user.CreatedAt, user.LastLoginAt, IsPrincipal(user)));
     }
+
+    [HttpDelete("users/{id:int}")]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return NotFound(new { message = "Usuario no encontrado." });
+
+        if (IsPrincipal(user))
+        {
+            return BadRequest(new { message = "El administrador principal no se puede eliminar." });
+        }
+
+        // Quien llama es un admin activo (lo valida OnTokenValidated), así que impedir
+        // el auto-borrado garantiza que siempre quede al menos un administrador.
+        if (User.FindFirstValue(ClaimTypes.NameIdentifier) == user.Id.ToString())
+        {
+            return BadRequest(new { message = "No puede eliminar su propio usuario." });
+        }
+
+        // El historial guarda el nombre de usuario como texto, así que los procesos
+        // que hizo este usuario se conservan.
+        _db.Users.Remove(user);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = $"Se eliminó el usuario '{user.Username}'." });
+    }
+
+    private static bool IsPrincipal(Models.User user) =>
+        string.Equals(user.Username, Models.User.PrincipalAdminUsername, StringComparison.OrdinalIgnoreCase);
 
     [HttpPost("jobs/clear")]
     public async Task<IActionResult> ClearJobs()

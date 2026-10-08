@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Usuarios Retirados DTU - Plataforma Empresarial</title>
+  <title>PW Extended App</title>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
@@ -18,8 +18,8 @@
         <div class="brand-icon" style="margin: 0 auto 1rem; width: 48px; height: 48px;">
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg>
         </div>
-        <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">Usuarios Retirados DTU</h1>
-        <p style="font-size: 0.85rem; color: var(--text-muted);">Honeywell ProWatch Integration Server</p>
+        <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">PW Extended App</h1>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Herramientas de Control de Acceso · Honeywell ProWatch</p>
       </div>
 
       <form id="form-login">
@@ -43,32 +43,17 @@
     <!-- Top Navigation Header -->
     <header class="app-header">
       <div class="brand-section">
+        <button type="button" id="btn-menu" class="btn-menu" aria-label="Abrir menú" aria-controls="app-sidebar" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
         <div class="brand-icon">
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg>
         </div>
         <div>
-          <span class="brand-title">Usuarios Retirados</span>
-          <span class="brand-badge">ProWatch DTU</span>
+          <span class="brand-title">PW Extended App</span>
+          <span class="brand-badge">ProWatch</span>
         </div>
       </div>
-
-      <nav class="nav-container">
-        <button class="nav-tab active" data-tab="dashboard">
-          <span>📊</span> Dashboard
-        </button>
-        <button class="nav-tab" data-tab="proceso">
-          <span>⚡</span> Nuevo Proceso
-        </button>
-        <button class="nav-tab" data-tab="historial">
-          <span>📁</span> Historial & Descargas
-        </button>
-        <button class="nav-tab" data-tab="vip">
-          <span>👑</span> Lista VIP
-        </button>
-        <button class="nav-tab" data-tab="admin" id="tab-btn-admin" style="display: none;">
-          <span>⚙</span> Administración
-        </button>
-      </nav>
 
       <div class="user-profile-bar">
         <div class="user-tag">
@@ -78,6 +63,32 @@
         <button id="btn-logout" class="btn-logout">Cerrar Sesión</button>
       </div>
     </header>
+
+    <div class="app-body">
+    <!-- Menú lateral: un grupo por módulo. Para agregar una sección nueva basta un
+         botón .nav-tab con data-tab="x" y un <section id="tab-x" class="tab-pane">. -->
+    <aside id="app-sidebar" class="app-sidebar">
+      <nav class="sidebar-nav" aria-label="Menú principal">
+        <div class="nav-group">
+          <div class="nav-group-title">Usuarios Retirados DTU</div>
+          <button class="nav-tab active" data-tab="dashboard"><span aria-hidden="true">📊</span> Dashboard</button>
+          <button class="nav-tab" data-tab="proceso"><span aria-hidden="true">⚡</span> Nuevo Proceso</button>
+          <button class="nav-tab" data-tab="historial"><span aria-hidden="true">📁</span> Historial &amp; Descargas</button>
+          <button class="nav-tab" data-tab="vip"><span aria-hidden="true">👑</span> Lista VIP</button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-title">Ocupación Edificios</div>
+          <button class="nav-tab" data-tab="oc-dashboard"><span aria-hidden="true">📈</span> Dashboard</button>
+          <button class="nav-tab" data-tab="oc-consulta"><span aria-hidden="true">🔎</span> Consultar</button>
+          <button class="nav-tab" data-tab="oc-carga" data-admin-only><span aria-hidden="true">⬆</span> Cargar Excel</button>
+          <button class="nav-tab" data-tab="oc-archivos"><span aria-hidden="true">🗂</span> Archivos</button>
+        </div>
+        <div class="nav-group" data-admin-only>
+          <div class="nav-group-title">Sistema</div>
+          <button class="nav-tab" data-tab="admin" id="tab-btn-admin"><span aria-hidden="true">⚙</span> Administración</button>
+        </div>
+      </nav>
+    </aside>
 
     <!-- Main Container -->
     <main class="app-main">
@@ -362,12 +373,193 @@
         </div>
       </section>
 
+
+      <!-- ================= MÓDULO: OCUPACIÓN EDIFICIOS ================= -->
+
+      <!-- OC 1: DASHBOARD -->
+      <section id="tab-oc-dashboard" class="tab-pane">
+        <div class="card" style="margin-bottom: 1.25rem;">
+          <div class="oc-toolbar">
+            <div>
+              <h2 class="oc-title">Ocupación Edificios</h2>
+              <p class="card-desc">Marcaciones de ProWatch cargadas desde los reportes diarios. <span id="oc-dash-rango"></span></p>
+            </div>
+            <div class="oc-filter-row">
+              <div class="form-group oc-field">
+                <label class="form-label" for="oc-dash-desde">Desde</label>
+                <div class="datepicker" id="dp-oc-dash-desde">
+                  <input type="text" id="oc-dash-desde" class="form-control" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+                  <button type="button" class="datepicker-toggle" data-dp-toggle aria-label="Abrir calendario" aria-haspopup="dialog" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                  <div class="datepicker-popup" role="dialog" aria-label="Calendario" hidden></div>
+                </div>
+              </div>
+              <div class="form-group oc-field">
+                <label class="form-label" for="oc-dash-hasta">Hasta</label>
+                <div class="datepicker" id="dp-oc-dash-hasta">
+                  <input type="text" id="oc-dash-hasta" class="form-control" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+                  <button type="button" class="datepicker-toggle" data-dp-toggle aria-label="Abrir calendario" aria-haspopup="dialog" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                  <div class="datepicker-popup" role="dialog" aria-label="Calendario" hidden></div>
+                </div>
+              </div>
+              <div class="oc-filter-actions">
+                <button type="button" id="oc-dash-aplicar" class="btn btn-primary btn-sm">Aplicar</button>
+                <button type="button" id="oc-dash-todo" class="btn btn-secondary btn-sm">Todo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="oc-kpis" class="oc-kpis" aria-live="polite"></div>
+
+        <div class="oc-grid">
+          <div class="card oc-span-2">
+            <div class="card-title"><span>Marcaciones por día</span></div>
+            <div id="oc-chart-dia" class="oc-chart"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span>Top empresas</span></div>
+            <div id="oc-top-empresas" class="oc-bars"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span>Top ciudades</span></div>
+            <div id="oc-top-ciudades" class="oc-bars"></div>
+          </div>
+          <div class="card oc-span-2">
+            <div class="card-title"><span>Cédulas con más marcaciones</span></div>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Cédula</th><th>Nombre</th><th class="num">Marcaciones</th><th></th></tr></thead>
+                <tbody id="oc-top-cedulas"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <p class="card-desc" id="oc-dash-calculado" style="margin-top: 0.75rem;"></p>
+      </section>
+
+      <!-- OC 2: CONSULTA -->
+      <section id="tab-oc-consulta" class="tab-pane">
+        <div class="card" style="margin-bottom: 1.25rem;">
+          <div class="card-title"><span>Consultar marcaciones</span></div>
+          <form id="oc-form-consulta" class="oc-filters" autocomplete="off">
+            <div class="form-group oc-field">
+                <label class="form-label" for="oc-f-desde">Desde</label>
+                <div class="datepicker" id="dp-oc-f-desde">
+                  <input type="text" id="oc-f-desde" class="form-control" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+                  <button type="button" class="datepicker-toggle" data-dp-toggle aria-label="Abrir calendario" aria-haspopup="dialog" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                  <div class="datepicker-popup" role="dialog" aria-label="Calendario" hidden></div>
+                </div>
+              </div>
+            <div class="form-group oc-field">
+                <label class="form-label" for="oc-f-hasta">Hasta</label>
+                <div class="datepicker" id="dp-oc-f-hasta">
+                  <input type="text" id="oc-f-hasta" class="form-control" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" autocomplete="off">
+                  <button type="button" class="datepicker-toggle" data-dp-toggle aria-label="Abrir calendario" aria-haspopup="dialog" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                  <div class="datepicker-popup" role="dialog" aria-label="Calendario" hidden></div>
+                </div>
+              </div>
+            <div class="form-group oc-field">
+              <label class="form-label" for="oc-f-empresa">Empresa</label>
+              <select id="oc-f-empresa" class="form-control"><option value="">Todas</option></select>
+            </div>
+            <div class="form-group oc-field">
+              <label class="form-label" for="oc-f-ciudad">Ciudad</label>
+              <select id="oc-f-ciudad" class="form-control"><option value="">Todas</option></select>
+            </div>
+            <div class="form-group oc-field">
+              <label class="form-label" for="oc-f-sede">Sede</label>
+              <select id="oc-f-sede" class="form-control"><option value="">Todas</option></select>
+            </div>
+            <div class="form-group oc-field">
+              <label class="form-label" for="oc-f-panel">Panel</label>
+              <select id="oc-f-panel" class="form-control"><option value="">Todas</option></select>
+            </div>
+            <div class="form-group oc-field">
+              <label class="form-label" for="oc-f-cedula">Cédula</label>
+              <input type="text" id="oc-f-cedula" class="form-control" inputmode="numeric">
+            </div>
+            <div class="form-group oc-field">
+              <label class="form-label" for="oc-f-nombre">Nombre o apellido</label>
+              <input type="text" id="oc-f-nombre" class="form-control">
+            </div>
+            <div class="oc-form-actions">
+              <button type="submit" class="btn btn-primary">Buscar</button>
+              <button type="button" id="oc-btn-limpiar" class="btn btn-secondary">Limpiar</button>
+              <div style="flex: 1;"></div>
+              <button type="button" class="btn btn-secondary" data-oc-export="xlsx">Exportar Excel</button>
+              <button type="button" class="btn btn-secondary" data-oc-export="csv">Exportar CSV</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="oc-results-bar">
+            <span id="oc-resumen" class="card-desc" aria-live="polite">--</span>
+            <div class="oc-pager">
+              <button type="button" id="oc-prev" class="btn btn-sm btn-secondary">‹ Anterior</button>
+              <span id="oc-page-info" class="card-desc">--</span>
+              <button type="button" id="oc-next" class="btn btn-sm btn-secondary">Siguiente ›</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="oc-table">
+              <thead><tr id="oc-thead"></tr></thead>
+              <tbody id="oc-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- OC 3: CARGA (solo Admin) -->
+      <section id="tab-oc-carga" class="tab-pane">
+        <div class="card">
+          <div class="card-title"><span>Cargar reportes de Ocupación Edificios</span></div>
+          <p class="card-desc" style="margin-bottom: 1rem;">
+            Excel (.xlsx o .xlsm) con las columnas Nombres, Apellidos, Panel, Sede Administrativa, Cedula,
+            Tarjeta de Acceso, Ciudad, Empresa, First Swipe of Day y Last Swipe of Day. Un archivo que ya se cargó
+            se omite, y las filas repetidas se descartan.
+          </p>
+          <div id="oc-dropzone" class="oc-dropzone" tabindex="0" role="button" aria-label="Seleccionar archivos Excel">
+            <input type="file" id="oc-files" multiple accept=".xlsx,.xlsm" hidden>
+            <strong>Arrastre los archivos aquí</strong>
+            <span class="card-desc">o haga clic para seleccionarlos</span>
+            <span id="oc-files-label" class="oc-files-label"></span>
+          </div>
+          <button type="button" id="oc-btn-subir" class="btn btn-primary" style="margin-top: 1rem;">Subir</button>
+          <div id="oc-upload-result" style="margin-top: 1.25rem;"></div>
+        </div>
+      </section>
+
+      <!-- OC 4: ARCHIVOS -->
+      <section id="tab-oc-archivos" class="tab-pane">
+        <div class="card">
+          <div class="card-title">
+            <span>Archivos cargados <span id="oc-arch-count" class="status-pill success">0</span></span>
+            <button type="button" id="oc-btn-refrescar" class="btn btn-sm btn-secondary">Refrescar</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>#</th><th>Archivo</th><th>Cargado</th><th class="num">Leídas</th><th class="num">Insertadas</th><th class="num">Duplicadas</th><th class="num">Con error</th><th></th></tr></thead>
+              <tbody id="oc-tbody-archivos"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
+    </div><!-- /.app-body -->
   </div>
 
   <!-- MODAL: VISTA PREVIA -->
   <div id="modal-preview" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 1100px;">
       <div class="modal-header">
         <div>
           <h3 class="modal-title">Vista Previa de Coincidencias</h3>
@@ -383,6 +575,8 @@
               <tr>
                 <th>Estado</th>
                 <th>Documento</th>
+                <th>Nombres</th>
+                <th>Apellidos</th>
                 <th>Sociedad</th>
                 <th>Fecha Evento</th>
               </tr>
@@ -518,6 +712,46 @@
     </div>
   </div>
 
+  <!-- MODAL: CONFIRMACIÓN ELIMINAR ARCHIVO DE OCUPACIÓN -->
+  <div id="modal-confirm-oc-archivo" class="modal-overlay">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Eliminar archivo cargado</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; margin-bottom: 0.75rem;">¿Eliminar <strong id="oc-confirm-archivo">--</strong>?</p>
+        <div style="background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-md); padding: 0.75rem; font-size: 0.8rem; color: var(--danger);">
+          También se borran sus <span id="oc-confirm-filas">--</span> marcaciones. Para recuperarlas habría que volver a cargar el Excel.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+        <button id="oc-btn-confirm-eliminar" class="btn btn-danger">Sí, Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN ELIMINAR USUARIO -->
+  <div id="modal-confirm-user-delete" class="modal-overlay">
+    <div class="modal-content" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Eliminar Usuario</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; margin-bottom: 0.75rem;">¿Eliminar al usuario <strong id="confirm-user-name">--</strong>?</p>
+        <div style="background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius-md); padding: 0.75rem; font-size: 0.8rem; color: var(--danger);">
+          No podrá volver a ingresar y su sesión abierta se cierra. Esta acción no se puede deshacer; los procesos que hizo se conservan en el historial.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+        <button id="btn-confirm-user-delete" class="btn btn-danger">Sí, Eliminar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: CONFIRMACIÓN QUITAR VIP -->
   <div id="modal-confirm-vip-delete" class="modal-overlay">
     <div class="modal-content" style="max-width: 460px;">
@@ -541,5 +775,6 @@
   <!-- Scripts -->
   <script src="/js/api.js"></script>
   <script src="/js/app.js"></script>
+  <script src="/js/ocupacion.js"></script>
 </body>
 </html>

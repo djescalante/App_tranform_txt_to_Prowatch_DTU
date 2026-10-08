@@ -12,7 +12,8 @@ const state = {
   jobs: [],
   previewRows: [],
   vipList: [],
-  vipPendingDeleteId: null
+  vipPendingDeleteId: null,
+  userPendingDelete: null
 };
 
 // --- Helper Functions ---
@@ -163,7 +164,9 @@ function initDatePicker(rootId) {
     }
     const day = e.target.closest('[data-dp-date]');
     if (day) {
-      setEventDate(day.dataset.dpDate);
+      input.value = day.dataset.dpDate;
+      input.classList.remove('is-invalid');
+      input.dispatchEvent(new Event('change', { bubbles: true }));
       close(false);
       input.focus();
     }
@@ -259,12 +262,12 @@ function showAppScreen() {
   roleBadge.innerText = state.user.role;
   roleBadge.className = `role-badge ${state.user.role.toLowerCase()}`;
 
-  // Hide or show admin tab
-  const adminTabBtn = document.getElementById('tab-btn-admin');
-  if (state.user.role === 'Admin') {
-    adminTabBtn.style.display = 'flex';
-  } else {
-    adminTabBtn.style.display = 'none';
+  // Menú y acciones solo para Admin (cualquier elemento con data-admin-only)
+  const isAdmin = state.user.role === 'Admin';
+  document.querySelectorAll('[data-admin-only]').forEach(el => { el.hidden = !isAdmin; });
+  const activeBtn = document.querySelector(`.nav-tab[data-tab="${state.activeTab}"]`);
+  if (!activeBtn || activeBtn.closest('[data-admin-only][hidden]')) {
+    switchTab('dashboard');
   }
 
   // VIP: solo Admin puede gestionar (operador solo consulta)
@@ -304,10 +307,15 @@ function switchTab(tabName) {
     pane.classList.toggle('active', pane.id === `tab-${tabName}`);
   });
 
+  document.body.classList.remove('sidebar-open');
+  document.getElementById('btn-menu')?.setAttribute('aria-expanded', 'false');
+
   if (tabName === 'dashboard') loadDashboard();
   if (tabName === 'historial') loadJobs();
   if (tabName === 'vip') loadVipList();
   if (tabName === 'admin' && state.user.role === 'Admin') loadAdminUsers();
+  // Módulos adicionales: cada uno atiende sus pestañas (prefijo propio, p. ej. "oc-")
+  if (tabName.startsWith('oc-')) window.ocupacion?.onShow(tabName);
 }
 
 // --- Event Listeners ---
@@ -347,6 +355,11 @@ function initEventListeners() {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
+  document.getElementById('btn-menu')?.addEventListener('click', (e) => {
+    const open = document.body.classList.toggle('sidebar-open');
+    e.currentTarget.setAttribute('aria-expanded', String(open));
+  });
+
   // Delegated actions (CSP strict: no inline event handlers)
   document.addEventListener('click', (e) => {
     const downloadBtn = e.target.closest('[data-download-job]');
@@ -369,6 +382,17 @@ function initEventListeners() {
     if (vipEditBtn) {
       const id = Number(vipEditBtn.dataset.vipEdit);
       openVipModal(state.vipList.find(v => v.id === id) || null);
+      return;
+    }
+
+    const userDeleteBtn = e.target.closest('[data-delete-user]');
+    if (userDeleteBtn) {
+      state.userPendingDelete = {
+        id: Number(userDeleteBtn.dataset.deleteUser),
+        username: userDeleteBtn.dataset.username
+      };
+      document.getElementById('confirm-user-name').innerText = userDeleteBtn.dataset.username;
+      document.getElementById('modal-confirm-user-delete').classList.add('open');
       return;
     }
 
@@ -443,6 +467,8 @@ function initEventListeners() {
     const usernameInput = document.getElementById('modal-user-username');
     usernameInput.disabled = false;
     usernameInput.value = '';
+    document.getElementById('modal-user-role').disabled = false;
+    document.getElementById('modal-user-active').disabled = false;
     document.getElementById('modal-user-password').placeholder = '••••••••';
     document.getElementById('modal-user-title').innerText = 'Nuevo Usuario';
     document.getElementById('modal-user').classList.add('open');
@@ -508,6 +534,7 @@ function initEventListeners() {
   document.getElementById('btn-vip-new')?.addEventListener('click', () => openVipModal(null));
   document.getElementById('form-vip-modal')?.addEventListener('submit', onSaveVip);
   document.getElementById('btn-confirm-vip-delete')?.addEventListener('click', onConfirmVipDelete);
+  document.getElementById('btn-confirm-user-delete')?.addEventListener('click', onConfirmUserDelete);
 }
 
 // --- Render Filter Chips ---
@@ -672,13 +699,15 @@ async function onGeneratePreview() {
     tbody.innerHTML = '';
 
     if (res.rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 2rem; color:var(--text-dim);">No se encontraron coincidencias con los filtros aplicados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem; color:var(--text-dim);">No se encontraron coincidencias con los filtros aplicados.</td></tr>';
     } else {
       res.rows.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><span class="status-pill warning">${escapeHtml(r.estado)}</span></td>
           <td><strong>${escapeHtml(r.documento)}</strong></td>
+          <td>${escapeHtml(r.nombres)}</td>
+          <td>${escapeHtml(r.apellidos)}</td>
           <td>${escapeHtml(r.sociedad)}</td>
           <td>${escapeHtml(r.fechaEvento)}</td>
         `;
@@ -928,6 +957,27 @@ async function onConfirmVipDelete() {
   }
 }
 
+async function onConfirmUserDelete() {
+  const pending = state.userPendingDelete;
+  if (!pending) return;
+
+  const btn = document.getElementById('btn-confirm-user-delete');
+  btn.disabled = true;
+  btn.innerText = 'Eliminando...';
+  try {
+    const res = await window.api.deleteUser(pending.id);
+    document.getElementById('modal-confirm-user-delete').classList.remove('open');
+    showToast(res.message || `Usuario '${pending.username}' eliminado.`);
+    state.userPendingDelete = null;
+    loadAdminUsers();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Sí, Eliminar';
+  }
+}
+
 // --- Admin ---
 async function loadAdminUsers() {
   try {
@@ -939,16 +989,19 @@ async function loadAdminUsers() {
     const tbody = document.getElementById('tbody-admin-users');
     tbody.innerHTML = '';
     users.forEach(u => {
+      // Sin botón Eliminar para uno mismo ni para el admin principal (el servidor también lo impide).
+      const isSelf = u.username.toLowerCase() === (state.user?.username || '').toLowerCase();
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${u.id}</td>
-        <td><strong>${escapeHtml(u.username)}</strong></td>
+        <td><strong>${escapeHtml(u.username)}</strong>${u.isPrincipal ? ' <span class="role-badge admin" title="No se puede eliminar, desactivar ni quitarle el rol Admin">Principal</span>' : ''}</td>
         <td>${escapeHtml(u.fullName)}</td>
         <td><span class="role-badge ${u.role === 'Admin' ? 'admin' : 'operator'}">${escapeHtml(u.role)}</span></td>
         <td><span class="status-pill ${u.isActive ? 'success' : 'danger'}">${u.isActive ? 'Activo' : 'Inactivo'}</span></td>
         <td>${escapeHtml(formatDate(u.lastLoginAt))}</td>
         <td>
           <button class="btn btn-sm btn-secondary" data-edit-user="${escapeHtml(JSON.stringify(u))}">Editar</button>
+          ${isSelf || u.isPrincipal ? '' : `<button class="btn btn-sm btn-danger" data-delete-user="${u.id}" data-username="${escapeHtml(u.username)}">Eliminar</button>`}
         </td>
       `;
       tbody.appendChild(tr);
@@ -968,6 +1021,9 @@ window.onEditUser = function(user) {
   document.getElementById('modal-user-fullname').value = user.fullName;
   document.getElementById('modal-user-role').value = user.role;
   document.getElementById('modal-user-active').checked = user.isActive;
+  // Admin principal: siempre activo y con rol Admin (solo se edita nombre y contraseña).
+  document.getElementById('modal-user-role').disabled = !!user.isPrincipal;
+  document.getElementById('modal-user-active').disabled = !!user.isPrincipal;
   document.getElementById('modal-user-password').value = '';
   document.getElementById('modal-user-password').placeholder = 'Dejar en blanco para no cambiar';
   document.getElementById('modal-user-title').innerText = `Editar Usuario: ${user.username}`;

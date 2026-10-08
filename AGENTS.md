@@ -1,8 +1,9 @@
 # AGENTS.md
 
-Herramienta interna para filtrar el padrón de empleados `Empleados.txt` y generar insumos para
-ProWatch DTU. El desarrollo activo es la **app web ASP.NET Core 10** en `server/` (API REST + SPA)
-con login, historial y descargas.
+**PW Extended App**: app web interna (ASP.NET Core 10 en `server/`, API REST + SPA) con login,
+historial y descargas. Módulos: **Usuarios Retirados DTU** (filtra `Empleados.txt` y genera insumos
+para ProWatch DTU) y **Ocupación Edificios** (marcaciones de ProWatch en `prowatch.db`). Servicio
+Windows `PWExtendedApp` (el anterior `UsuariosRetiradosDTU` lo eliminan los instaladores).
 
 > La app PowerShell + WinForms original está **retirada** (ver "Legacy"). Su código se conserva en
 > el historial de git y en un ZIP de respaldo.
@@ -26,6 +27,7 @@ con login, historial y descargas.
 
 ## Columnas usadas (por nombre, no por índice fijo)
 Índices reales: `ESTADO`=0, `DOCUMENTO`=1, `NOMBRE SOCIEDAD`=9, `FECHA EVENTO`=42.
+Opcionales (solo vista previa y XLSX; nunca en DTU ni TSV): `NOMBRE EMPLEADO`, `APELLIDO EMPLEADO`.
 `FECHA EVENTO` tiene formato `dd/MM/yyyy`.
 
 ## Salidas
@@ -38,14 +40,22 @@ con login, historial y descargas.
 - Destino por defecto: `salidas\` en la raíz del repo (configurable en Administración).
 
 ## Estructura
-- `server\` — app web ASP.NET Core 10 (API REST + SPA en `wwwroot\`) con JWT/BCrypt, historial en
-  SQLite (`usuarios_retirados.db`, ignorada) y descargas.
+- `server\` — app web ASP.NET Core 10 (API REST + SPA en `wwwroot\`) con JWT/BCrypt, historial y
+  descargas. Solo código: las bases **no** van ahí (`server\Data\` es código EF Core y Windows no
+  distingue `data`/`Data`).
+- `data\` — bases SQLite (ignoradas): `prowatch.db` (Ocupación), `usuarios_retirados.db` (servicio
+  instalado desde el repo) y `usuarios_retirados.dev.db` (desarrollo, vía
+  `appsettings.Development.json`). Las rutas relativas de conexión se resuelven contra la carpeta
+  de la app (`Program.cs`), nunca contra el directorio actual (en un servicio sería System32).
 - `server\README.md` — arquitectura, API, configuración, TLS y despliegue.
 - `server\app\estructura.json` — base de estructura esperada (nombres+orden de columnas).
 - `server\Iniciar-Servidor.cmd` — lanzador de desarrollo (`https://localhost`, TLS 1.3); usa
   el SDK x64 explícito y lee la contraseña del PFX desde `server\certs\pfx-password.txt`.
 - `server\Instalar-Servicio.ps1` — publica y registra el servicio Windows (escribe `Jwt__Secret` y
   `Kestrel__Endpoints__Https__*` en el registro del servicio).
+- `server\Crear-Paquete.ps1` — genera `paquete\PWExtendedApp_<fecha>.zip` (app publicada +
+  `server\deploy\*` + runtime). `server\deploy\Limpiar-Servicios.cmd` quita los servicios
+  `PWExtendedApp`/`UsuariosRetiradosDTU` y sus reglas de firewall sin borrar datos (`-Simular`).
 - `prerequisitos\` — instaladores .NET 10 para el servidor (binarios ignorados; el `README.md` con
   links, checksums y checklist **sí** se versiona).
 - `salidas\` — artefactos generados (ignorados por git).
@@ -74,6 +84,16 @@ con login, historial y descargas.
 - **Lista VIP**: `VipEmployees` (cédula única, `COLLATE NOCASE`) protege cédulas que **nunca** se
   exportan; preview/process las alertan y omiten (DTU/XLSX/TSV) y el job guarda
   `VipOmittedCount`/`VipOmittedDetails`. Admin gestiona (`/api/vip`), operador solo lee.
+- **Ocupación Edificios** (`Services/Ocupacion/`, `wwwroot/js/ocupacion.js`): base aparte
+  `prowatch.db` (`Ocupacion:DbPath`; en el repo `data\prowatch.db`, ignorada), mismo esquema que
+  la app Python original (retirada y borrada). `OcupacionIngest.cs` imita a openpyxl celda por
+  celda: **no cambiar** las conversiones ni el `fingerprint` SHA-1 o se duplicarán filas ya
+  cargadas. Stats/filtros cacheados e invalidados al cargar/borrar; `OcupacionWarmup` los
+  precalcula al arrancar. Consultar/exportar: todos; cargar/borrar: Admin.
+- **Menú por módulos**: botones `.nav-tab[data-tab]` agrupados en `.nav-group` del sidebar;
+  `[data-admin-only]` oculta lo que es solo de Admin; las pestañas `oc-*` las atiende
+  `window.ocupacion.onShow`.
+- **Admin principal**: la cuenta `admin` (`User.PrincipalAdminUsername`) no se puede eliminar, desactivar ni pasar a Operador desde la app.
 - **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!` — cambiar en producción.
 - CORS por defecto vacío = mismo origen; `Cors:AllowedOrigins` permite lista blanca o `["*"]`.
 - Si `Instalar-Servicio.ps1` corre con PS 5.1, evitar sintaxis PS7 (`?.`,
@@ -103,7 +123,7 @@ con login, historial y descargas.
 
 ## Legacy (app PowerShell, retirada)
 - La app PowerShell + WinForms (`UsuariosRetiradosDTU\`, `Usuarios-Retirados-DTU.ps1`, `specs.md`)
-  ya **no** forma parte del desarrollo. El código sigue en el historial de git.
+  ya **no** forma parte del desarrollo y su carpeta se eliminó. El código sigue en el historial de git.
 - Respaldo portable: `E:\CarpetaTrabajoIA\backup\UsuariosRetiradosDTU_PS_<fecha>.zip` (fuera del
   repo; incluye `lib\ImportExcel`).
 - Los hashes SHA256 del TXT DTU en `server\README.md` siguen siendo el **baseline contractual**.

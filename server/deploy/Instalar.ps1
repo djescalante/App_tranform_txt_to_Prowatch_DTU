@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Instala Usuarios Retirados DTU (app ya compilada) como Servicio de Windows.
+    Instala PW Extended App (app ya compilada) como Servicio de Windows.
 
 .DESCRIPTION
     Se ejecuta desde la raiz del paquete generado por server\Crear-Paquete.ps1:
@@ -10,12 +10,16 @@
           app\            aplicacion publicada (UsuariosRetirados.Server.exe)
           prerequisitos\  instalador del ASP.NET Core Runtime 10 (x64)
           certs\          PFX + password (se generan aqui si no existen)
-          data\           base SQLite (se crea al primer arranque)
+          data\           usuarios_retirados.db (se crea sola) y prowatch.db
+                          (Ocupacion Edificios: copiarla aqui antes de instalar)
           salidas\        archivos generados (DTU / XLSX / TSV)
           Empleados.txt   padron (copiarlo aqui o cambiar la ruta en Administracion)
 
     No requiere el SDK de .NET ni acceso a internet: solo el ASP.NET Core Runtime,
     que se instala desde prerequisitos\ si falta.
+
+    Si existe el servicio anterior "UsuariosRetiradosDTU", se elimina y se
+    reutiliza su secreto JWT (las sesiones no se cierran).
 
     Compatible con Windows PowerShell 5.1.
 
@@ -26,14 +30,15 @@
 param(
     [ValidateSet('Install', 'Uninstall', 'Status')]
     [string]$Action = 'Install',
-    [string]$ServiceName = 'UsuariosRetiradosDTU',
-    [string]$DisplayName = 'Usuarios Retirados DTU - Servicio Web',
+    [string]$ServiceName = 'PWExtendedApp',
+    [string]$DisplayName = 'PW Extended App - Servicio Web',
     [int]$Port = 443,
     [string]$JwtSecret,
     [string]$CertPath,
     [string]$CertPassword,
     [string]$InputPath,
-    [string]$OutputDir
+    [string]$OutputDir,
+    [string]$OcupacionDbPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,10 +47,19 @@ $appDir = Join-Path $root 'app'
 $certsDir = Join-Path $root 'certs'
 $dataDir = Join-Path $root 'data'
 $exePath = Join-Path $appDir 'UsuariosRetirados.Server.exe'
+$LegacyServiceName = 'UsuariosRetiradosDTU'
 $serviceRegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
 
-function Get-ServiceEnvValue([string]$name) {
-    $props = Get-ItemProperty -Path $serviceRegPath -Name Environment -ErrorAction SilentlyContinue
+function Remove-AppService([string]$svcName) {
+    if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue)) { return $false }
+    Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
+    sc.exe delete $svcName | Out-Null
+    Start-Sleep -Seconds 2
+    return $true
+}
+
+function Get-ServiceEnvValue([string]$name, [string]$svcName = $ServiceName) {
+    $props = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$svcName" -Name Environment -ErrorAction SilentlyContinue
     if (-not $props) { return $null }
     foreach ($line in $props.Environment) {
         if ($line.StartsWith("$name=")) { return $line.Substring($name.Length + 1) }
@@ -62,8 +76,8 @@ function Test-AspNetRuntime {
 
 if ($Action -eq 'Uninstall') {
     Write-Host "==> Deteniendo y removiendo servicio '$ServiceName'..." -ForegroundColor Yellow
-    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-    sc.exe delete $ServiceName | Out-Null
+    Remove-AppService $ServiceName | Out-Null
+    Remove-AppService $LegacyServiceName | Out-Null
     Write-Host "Servicio desinstalado. Se conservan data\, certs\ y salidas\." -ForegroundColor Green
     exit 0
 }
@@ -143,6 +157,7 @@ if (-not $CertPassword) {
 # 3. Secreto JWT: se reutiliza el del servicio existente para no invalidar sesiones.
 $jwtFile = Join-Path $certsDir 'jwt-secret.txt'
 if (-not $JwtSecret) { $JwtSecret = Get-ServiceEnvValue 'Jwt__Secret' }
+if (-not $JwtSecret) { $JwtSecret = Get-ServiceEnvValue 'Jwt__Secret' $LegacyServiceName }
 if (-not $JwtSecret -and (Test-Path $jwtFile)) { $JwtSecret = (Get-Content -LiteralPath $jwtFile -Raw).Trim() }
 if (-not $JwtSecret) {
     $bytes = New-Object byte[] 48
@@ -164,6 +179,12 @@ if (-not $InputPath) { $InputPath = Join-Path $root 'Empleados.txt' }
 if (-not (Test-Path $InputPath)) {
     Write-Warning "No se encontro el padron en '$InputPath'. Copielo ahi o cambie la ruta en Administracion."
 }
+if (-not $OcupacionDbPath) { $OcupacionDbPath = Join-Path $dataDir 'prowatch.db' }
+if (Test-Path $OcupacionDbPath) {
+    Write-Host "==> Ocupacion Edificios: $OcupacionDbPath" -ForegroundColor Cyan
+} else {
+    Write-Warning "No se encontro prowatch.db en '$OcupacionDbPath'. Se creara vacia; para conservar el historico copie la base ahi y reinstale."
+}
 
 # 5. TLS 1.3 requiere Windows Server 2022 / Windows 11 (build 20348+).
 $build = [Environment]::OSVersion.Version.Build
@@ -178,13 +199,8 @@ if ($build -lt 20348) {
 
 # 6. Servicio
 Write-Host "==> Registrando Servicio de Windows '$ServiceName'..." -ForegroundColor Cyan
-$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($existing) {
-    Write-Host "    El servicio ya existe. Deteniendo y reemplazando..."
-    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-    sc.exe delete $ServiceName | Out-Null
-    Start-Sleep -Seconds 2
-}
+if (Remove-AppService $ServiceName) { Write-Host "    El servicio ya existia: se reemplaza." }
+if (Remove-AppService $LegacyServiceName) { Write-Host "    Servicio anterior '$LegacyServiceName' eliminado." -ForegroundColor Yellow }
 
 # El puerto debe estar libre (p. ej. no debe correr Iniciar-Servidor.cmd).
 $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -197,7 +213,7 @@ if ($listener) {
 New-Service -Name $ServiceName `
     -BinaryPathName "`"$exePath`"" `
     -DisplayName $DisplayName `
-    -Description 'Servidor web para procesamiento del padron de empleados y generacion de DTU ProWatch' `
+    -Description 'PW Extended App: Usuarios Retirados DTU, Ocupacion Edificios y herramientas de Control de Acceso para ProWatch' `
     -StartupType Automatic | Out-Null
 
 # Nota: Kestrel lee el PFX de Certificate:Path / Certificate:Password.
@@ -210,14 +226,15 @@ $envVars = @(
     "Kestrel__Endpoints__Https__Certificate__Password=$CertPassword",
     "ConnectionStrings__DefaultConnection=Data Source=$(Join-Path $dataDir 'usuarios_retirados.db')",
     "AppPaths__InputPath=$InputPath",
-    "AppPaths__OutputDir=$OutputDir"
+    "AppPaths__OutputDir=$OutputDir",
+    "Ocupacion__DbPath=$OcupacionDbPath"
 ) + $tlsEnv
 New-ItemProperty -Path $serviceRegPath -Name Environment -PropertyType MultiString -Force -Value $envVars | Out-Null
 
 sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
 
 # 7. Firewall
-$ruleName = "UsuariosRetiradosDTU $Port"
+$ruleName = "PW Extended App $Port"
 if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
     Write-Host "==> Abriendo puerto $Port en el firewall..." -ForegroundColor Cyan
     New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow | Out-Null
@@ -229,7 +246,7 @@ Start-Service -Name $ServiceName
 Start-Sleep -Seconds 5
 $svc = Get-Service -Name $ServiceName
 if ($svc.Status -ne 'Running') {
-    Write-Error "El servicio quedo en estado '$($svc.Status)'. Revise el Visor de eventos (Aplicacion, origen .NET Runtime / UsuariosRetiradosDTU)."
+    Write-Error "El servicio quedo en estado '$($svc.Status)'. Revise el Visor de eventos (Aplicacion, origen .NET Runtime)."
     exit 1
 }
 

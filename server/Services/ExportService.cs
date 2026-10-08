@@ -86,13 +86,14 @@ public class ExportService : IExportService
             {
                 var ws = workbook.Worksheets.Add("Usuarios Retirados");
 
-                // Headers
-                ws.Cell(1, 1).Value = "ESTADO";
-                ws.Cell(1, 2).Value = "DOCUMENTO";
-                ws.Cell(1, 3).Value = "NOMBRE SOCIEDAD";
-                ws.Cell(1, 4).Value = "FECHA EVENTO";
+                // Headers (NOMBRE/APELLIDO solo en el XLSX; el DTU y el TSV no cambian)
+                string[] headers = ["ESTADO", "DOCUMENTO", "NOMBRE EMPLEADO", "APELLIDO EMPLEADO", "NOMBRE SOCIEDAD", "FECHA EVENTO"];
+                for (int c = 0; c < headers.Length; c++)
+                {
+                    ws.Cell(1, c + 1).Value = headers[c];
+                }
 
-                var headerRange = ws.Range(1, 1, 1, 4);
+                var headerRange = ws.Range(1, 1, 1, headers.Length);
                 headerRange.Style.Font.Bold = true;
                 headerRange.Style.Font.FontColor = XLColor.White;
                 headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F4E78");
@@ -103,16 +104,18 @@ public class ExportService : IExportService
                 {
                     ws.Cell(rowIndex, 1).SetValue(row.Estado);
                     ws.Cell(rowIndex, 2).SetValue(row.Documento);
-                    ws.Cell(rowIndex, 3).SetValue(row.Sociedad);
+                    ws.Cell(rowIndex, 3).SetValue(row.Nombres);
+                    ws.Cell(rowIndex, 4).SetValue(row.Apellidos);
+                    ws.Cell(rowIndex, 5).SetValue(row.Sociedad);
 
                     // Keep FECHA EVENTO as explicit string
-                    ws.Cell(rowIndex, 4).SetValue(row.FechaEvento);
+                    ws.Cell(rowIndex, 6).SetValue(row.FechaEvento);
 
                     rowIndex++;
                 }
 
                 ws.SheetView.FreezeRows(1);
-                ws.Columns(1, 4).AdjustToContents();
+                ws.Columns(1, headers.Length).AdjustToContents();
 
                 workbook.SaveAs(xlsxPath);
             }

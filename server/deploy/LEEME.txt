@@ -1,5 +1,9 @@
-USUARIOS RETIRADOS DTU - PAQUETE DE INSTALACION
-===============================================
+PW EXTENDED APP - PAQUETE DE INSTALACION
+========================================
+
+Herramientas de Control de Acceso para ProWatch:
+  - Usuarios Retirados DTU (padron de empleados -> archivo para ProWatch DTU)
+  - Ocupacion Edificios (consulta de marcaciones de los reportes diarios)
 
 Aplicacion ya compilada. En el servidor NO se necesita el SDK de .NET ni internet.
 
@@ -11,34 +15,45 @@ Requisitos
 
 Instalacion
 -----------
-1. Copiar esta carpeta completa al servidor, por ejemplo C:\UsuariosRetiradosDTU\
+1. Copiar esta carpeta completa al servidor, por ejemplo C:\PWExtendedApp\
    (no usar una carpeta de usuario ni una unidad de red).
 2. Copiar el padron Empleados.txt dentro de esta carpeta
    (o indicar otra ruta despues, en Administracion).
-3. Clic derecho en Instalar.cmd > "Ejecutar como administrador".
+3. Copiar la base de Ocupacion Edificios (prowatch.db, ~800 MB) en data\
+   (o indicar otra ruta con -OcupacionDbPath). Si no se copia, el modulo
+   arranca vacio y se llena cargando los Excel desde la app.
+4. Clic derecho en Instalar.cmd > "Ejecutar como administrador".
    El instalador:
      - instala el ASP.NET Core Runtime 10 si falta (desde prerequisitos\),
      - genera un certificado HTTPS con el nombre del servidor (certs\),
      - genera el secreto JWT (certs\jwt-secret.txt),
-     - registra e inicia el servicio "UsuariosRetiradosDTU" (inicio automatico),
+     - elimina el servicio anterior "UsuariosRetiradosDTU" si existe,
+     - registra e inicia el servicio "PWExtendedApp" (inicio automatico),
      - abre el puerto 443 en el firewall.
-4. Abrir https://NOMBRE-SERVIDOR e ingresar con admin / Admin123!
+5. Abrir https://NOMBRE-SERVIDOR e ingresar con admin / Admin123!
    CAMBIAR DE INMEDIATO las contrasenas de admin y operador1..operador5
    (operadores: Operador123!).
 
 Despues de instalar
 -------------------
-- Respaldar la carpeta certs\ (certificado, su contrasena y el secreto JWT).
+- Respaldar la carpeta certs\ (certificado, su contrasena y el secreto JWT)
+  y la carpeta data\ (usuarios, historial, Lista VIP y prowatch.db).
 - Para quitar la advertencia de certificado en los equipos de los usuarios,
   importar certs\server.cer en "Entidades de certificacion raiz de confianza"
   (o distribuirlo por GPO).
+- Al arrancar, el dashboard de Ocupacion Edificios se precalcula en segundo
+  plano (~20 s con 1,8 millones de marcaciones).
 
 Otras opciones
 --------------
   Instalar.cmd -Port 5001                 usar otro puerto (por defecto 443)
   Instalar.cmd -InputPath D:\x\Empleados.txt -OutputDir D:\x\salidas
+  Instalar.cmd -OcupacionDbPath D:\x\prowatch.db
   Instalar.cmd -Action Status             ver estado del servicio
   Instalar.cmd -Action Uninstall          quitar el servicio (conserva datos)
+  Limpiar-Servicios.cmd                   quitar el servicio actual y el anterior
+                                          (UsuariosRetiradosDTU) y sus reglas de firewall;
+                                          con -Simular solo muestra lo que haria
 
 Actualizar a una version nueva: reemplazar solo la carpeta app\ y volver a
 ejecutar Instalar.cmd (se conservan data\, certs\ y salidas\).
@@ -48,5 +63,5 @@ Carpetas
   app\            aplicacion (no editar)
   prerequisitos\  instalador del ASP.NET Core Runtime 10
   certs\          certificado y secretos (solo Administradores)
-  data\           base de datos (usuarios, historial, lista VIP)
+  data\           bases de datos (usuarios, historial, Lista VIP, prowatch.db)
   salidas\        archivos generados (DTU, XLSX, TSV)

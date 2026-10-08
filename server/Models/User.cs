@@ -4,6 +4,12 @@ namespace UsuariosRetirados.Server.Models;
 
 public class User
 {
+    /// <summary>
+    /// Cuenta de administrador principal (la del seed). No se puede eliminar,
+    /// desactivar ni quitarle el rol Admin desde la app.
+    /// </summary>
+    public const string PrincipalAdminUsername = "admin";
+
     [Key]
     public int Id { get; set; }
 

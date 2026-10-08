@@ -1,5 +1,5 @@
 // ==========================================================================
-//  API Client - Usuarios Retirados DTU
+//  API Client - PW Extended App
 // ==========================================================================
 
 const API_BASE = '/api';
@@ -27,6 +27,8 @@ class ApiClient {
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
+    // Un header en undefined se omite (p. ej. Content-Type en subidas multipart).
+    Object.keys(headers).forEach(k => headers[k] === undefined && delete headers[k]);
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
@@ -112,7 +114,34 @@ class ApiClient {
   }
 
   async downloadJobFile(jobId, format, defaultFileName) {
-    const response = await fetch(`${API_BASE}/jobs/${jobId}/download/${format}?_=${Date.now()}`, {
+    return this.downloadFile(`/jobs/${jobId}/download/${format}?_=${Date.now()}`, defaultFileName || null, `${format}_${jobId}`);
+  }
+
+  /** GET con parámetros de consulta (omite los vacíos). */
+  async get(endpoint, params = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    }
+    const q = qs.toString();
+    return this.request(q ? `${endpoint}?${q}` : endpoint);
+  }
+
+  /** Sube archivos como multipart (campo "files"). */
+  async uploadFiles(endpoint, files) {
+    const form = new FormData();
+    for (const f of files) form.append('files', f);
+    return this.request(endpoint, {
+      method: 'POST',
+      body: form,
+      // Sin Content-Type: el navegador pone el boundary del multipart.
+      headers: { 'Content-Type': undefined }
+    });
+  }
+
+  /** Descarga un archivo autenticado y lo guarda con el nombre que indique el servidor. */
+  async downloadFile(endpoint, defaultFileName, fallbackName = 'descarga') {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
       headers: this.token ? { 'Authorization': `Bearer ${this.token}` } : {}
     });
 
@@ -137,7 +166,7 @@ class ApiClient {
     const fileName = defaultFileName
       || (utf8Match ? decodeURIComponent(utf8Match[1]) : null)
       || (asciiMatch ? asciiMatch[1] : null)
-      || `${format}_${jobId}`;
+      || fallbackName;
 
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -196,6 +225,12 @@ class ApiClient {
     return await this.request(`/admin/users/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(userData)
+    });
+  }
+
+  async deleteUser(userId) {
+    return await this.request(`/admin/users/${userId}`, {
+      method: 'DELETE'
     });
   }
 

@@ -29,7 +29,9 @@ public record EmpleadoRowDto(
     string Estado,
     string Documento,
     string Sociedad,
-    string FechaEvento
+    string FechaEvento,
+    string Nombres = "",   // NOMBRE EMPLEADO (solo vista previa y XLSX; no va al DTU ni al TSV)
+    string Apellidos = ""  // APELLIDO EMPLEADO
 );
 
 public record PreviewResponse(
