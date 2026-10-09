@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UsuariosRetirados.Server.Models;
+namespace PWExtendedApp.Server.Models;
 
 /// <summary>
 /// Persona protegida: su cédula nunca debe exportarse en los insumos de bloqueo.

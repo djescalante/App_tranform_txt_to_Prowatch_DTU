@@ -1,15 +1,16 @@
-namespace UsuariosRetirados.Server;
+namespace PWExtendedApp.Server;
 
 /// <summary>
 /// Adds hardening headers to every response. HSTS is only sent over HTTPS.
-/// The SPA is self-contained (no external fonts/scripts), so the CSP can stay strict.
+/// The SPA is self-contained (no external fonts/scripts, no inline styles or handlers),
+/// so the CSP can stay strict: style-src without 'unsafe-inline'.
 /// </summary>
 public class SecurityHeadersMiddleware
 {
     private const string Csp =
         "default-src 'self'; " +
         "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline'; " +
+        "style-src 'self'; " +
         "img-src 'self' data:; " +
         "font-src 'self'; " +
         "connect-src 'self'; " +

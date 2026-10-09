@@ -4,12 +4,18 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 
-namespace UsuariosRetirados.Server.Services.Ocupacion;
+namespace PWExtendedApp.Server.Services.Ocupacion;
 
 public record OcupacionRegistro(
     string? Fecha, string Nombres, string Apellidos, string Panel, string SedeAdministrativa,
     string Cedula, string TarjetaAcceso, string Ciudad, string Empresa,
     string FirstSwipe, string LastSwipe, string Fingerprint);
+
+/// <summary>
+/// El Excel se pudo abrir pero no tiene la estructura esperada. Su mensaje es para el usuario
+/// (a diferencia de los errores internos de lectura, que se muestran de forma genérica).
+/// </summary>
+public class ExcelEstructuraException(string message) : Exception(message);
 
 public record OcupacionCargaResultado(
     string Nombre, string Estado, long? ArchivoId = null, int FilasLeidas = 0,
@@ -197,7 +203,7 @@ public static partial class OcupacionIngest
 
     // ---------- Lectura del libro ----------
 
-    /// <summary>Parsea el Excel. Lanza InvalidDataException si no tiene la estructura esperada.</summary>
+    /// <summary>Parsea el Excel. Lanza ExcelEstructuraException si no tiene la estructura esperada.</summary>
     public static (List<OcupacionRegistro> Registros, int Errores) Parse(Stream xlsx, string fileName)
     {
         using var wb = new XLWorkbook(xlsx);
@@ -226,12 +232,12 @@ public static partial class OcupacionIngest
 
         if (headerRow < 0)
         {
-            throw new InvalidDataException("No se encontro la fila de encabezado (Nombres/Cedula)");
+            throw new ExcelEstructuraException("No se encontro la fila de encabezado (Nombres/Cedula)");
         }
         var missing = new[] { "nombres", "apellidos", "cedula" }.Where(c => !positions.ContainsKey(c)).ToList();
         if (missing.Count > 0)
         {
-            throw new InvalidDataException($"Faltan columnas obligatorias: {string.Join(", ", missing)}");
+            throw new ExcelEstructuraException($"Faltan columnas obligatorias: {string.Join(", ", missing)}");
         }
 
         var fallbackDate = DateFromFileName(fileName);

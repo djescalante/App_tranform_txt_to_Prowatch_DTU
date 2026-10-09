@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flujo Ocupación Edificios</title>
+<style>
+  :root { --bg:#0b1220; --card:#121b2e; --line:#2a3a55; --text:#e8eef7; --muted:#9fb0c7; --accent:#3987e5; --ok:#34d399; --warn:#f59e5b; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg:#f4f6f9; --card:#ffffff; --line:#cbd5e1; --text:#0e1a2b; --muted:#4a5868; --accent:#0369a1; --ok:#047857; --warn:#b4501a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: "Segoe UI", system-ui, sans-serif; line-height:1.5; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  h2 { font-size: 1.1rem; margin: 32px 0 12px; color: var(--accent); }
+  .flow { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 14px; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; position:relative; }
+  .step b { display:block; margin-bottom:4px; }
+  .step span { color: var(--muted); font-size: .9rem; }
+  .step .n { position:absolute; top:-10px; left:12px; background:var(--accent); color:#fff; font-size:.75rem; font-weight:700; border-radius:999px; padding:1px 8px; }
+  .grid2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .box h3 { margin:0 0 8px; font-size:1rem; }
+  .box ul { margin:0; padding-left:18px; color: var(--muted); font-size:.92rem; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color: var(--muted); font-weight:600; }
+  code { font-family: Consolas, monospace; font-size: .85rem; }
+  svg text { fill: var(--text); font-size: 13px; font-family: "Segoe UI", sans-serif; }
+  svg .small { fill: var(--muted); font-size: 11px; }
+  .diagram { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PW Extended App · Módulo Ocupación Edificios</h1>
+  <p class="sub">Del reporte diario de ProWatch (Excel) a consultas, dashboard y exportaciones con control de acceso y bitácora.</p>
+
+  <h2>Flujo de punta a punta</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1040 250" width="100%" role="img" aria-label="Flujo: Excel diario, carga por administrador, lectura y deduplicación, prowatch.db, consultas de usuarios, exportación y bitácora">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#3987e5"/></marker></defs>
+      <g fill="none" stroke="#3987e5" stroke-width="2" marker-end="url(#a)">
+        <path d="M150 70H200"/><path d="M350 70H400"/><path d="M550 70H600"/><path d="M750 70H800"/>
+        <path d="M675 110V160"/><path d="M875 110V160"/>
+      </g>
+      <g fill="none" stroke="#2a3a55" stroke-width="1.5">
+        <rect x="10" y="30" width="140" height="80" rx="10"/><rect x="200" y="30" width="150" height="80" rx="10"/>
+        <rect x="400" y="30" width="150" height="80" rx="10"/><rect x="600" y="30" width="150" height="80" rx="10"/>
+        <rect x="800" y="30" width="200" height="80" rx="10"/>
+        <rect x="600" y="160" width="150" height="70" rx="10"/><rect x="800" y="160" width="200" height="70" rx="10"/>
+      </g>
+      <text x="80" y="65" text-anchor="middle">Excel diario</text><text class="small" x="80" y="85" text-anchor="middle">Reporte ProWatch</text>
+      <text x="275" y="65" text-anchor="middle">Carga (Admin)</text><text class="small" x="275" y="85" text-anchor="middle">Arrastrar y soltar</text>
+      <text x="475" y="60" text-anchor="middle">Lectura + validación</text><text class="small" x="475" y="80" text-anchor="middle">Hash del archivo y</text><text class="small" x="475" y="95" text-anchor="middle">huella por fila</text>
+      <text x="675" y="65" text-anchor="middle">prowatch.db</text><text class="small" x="675" y="85" text-anchor="middle">1,85 M marcaciones</text>
+      <text x="900" y="60" text-anchor="middle">Dashboard y Consulta</text><text class="small" x="900" y="80" text-anchor="middle">Filtros, gráficas,</text><text class="small" x="900" y="95" text-anchor="middle">top cédulas</text>
+      <text x="675" y="192" text-anchor="middle">Respaldo diario</text><text class="small" x="675" y="212" text-anchor="middle">7 copias</text>
+      <text x="900" y="192" text-anchor="middle">Exportar Excel/CSV</text><text class="small" x="900" y="212" text-anchor="middle">Registrado en bitácora</text>
+    </svg>
+  </div>
+
+  <h2>Pasos</h2>
+  <div class="flow">
+    <div class="step"><span class="n">1</span><b>Carga</b><span>El administrador sube uno o varios Excel (.xlsx/.xlsm).</span></div>
+    <div class="step"><span class="n">2</span><b>Archivo repetido</b><span>Si el mismo archivo ya se cargó (hash SHA-256), se omite.</span></div>
+    <div class="step"><span class="n">3</span><b>Lectura</b><span>Busca el encabezado (Nombres + Cédula) aunque haya metadatos arriba.</span></div>
+    <div class="step"><span class="n">4</span><b>Deduplicación</b><span>Cada fila tiene una huella; las filas idénticas no se repiten.</span></div>
+    <div class="step"><span class="n">5</span><b>Consulta</b><span>Dashboard precalculado y búsqueda por fecha, empresa, sede, panel, cédula o nombre.</span></div>
+    <div class="step"><span class="n">6</span><b>Exportación</b><span>Excel o CSV (hasta 500.000 filas) con registro en la bitácora.</span></div>
+  </div>
+
+  <h2>Antes y ahora</h2>
+  <table>
+    <tr><th>Aspecto</th><th>App Python anterior</th><th>PW Extended App</th></tr>
+    <tr><td>Acceso</td><td class="warn">Sin login</td><td class="ok">Usuarios, roles y bloqueo por intentos</td></tr>
+    <tr><td>Dashboard</td><td class="warn">~21 s cada vez; fallaba con filtros</td><td class="ok">Precalculado (&lt;1 s) y con filtro de fechas</td></tr>
+    <tr><td>Internet</td><td class="warn">Gráficas desde CDN</td><td class="ok">Funciona sin internet</td></tr>
+    <tr><td>Trazabilidad</td><td class="warn">Ninguna</td><td class="ok">Bitácora de consultas y exportaciones</td></tr>
+    <tr><td>Respaldo</td><td class="warn">Manual</td><td class="ok">Diario automático</td></tr>
+    <tr><td>Exactitud</td><td>Referencia</td><td class="ok">Mismas huellas verificadas (pruebas automáticas)</td></tr>
+  </table>
+
+  <h2>Quién puede hacer qué</h2>
+  <div class="grid2">
+    <div class="box"><h3>Operador</h3><ul><li>Ver el dashboard</li><li>Consultar y exportar</li><li>Ver archivos cargados</li></ul></div>
+    <div class="box"><h3>Administrador</h3><ul><li>Todo lo del operador</li><li>Cargar y borrar Excel</li><li>Revisar la bitácora y los respaldos</li></ul></div>
+  </div>
+</main>
+</body>
+</html>

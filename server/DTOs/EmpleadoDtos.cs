@@ -1,4 +1,4 @@
-namespace UsuariosRetirados.Server.DTOs;
+namespace PWExtendedApp.Server.DTOs;
 
 public record PadronInfoResponse(
     bool Exists,

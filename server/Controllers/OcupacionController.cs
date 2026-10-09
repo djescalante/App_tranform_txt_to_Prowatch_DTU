@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using UsuariosRetirados.Server.Services.Ocupacion;
+using PWExtendedApp.Server.Services;
+using PWExtendedApp.Server.Services.Ocupacion;
 
-namespace UsuariosRetirados.Server.Controllers;
+namespace PWExtendedApp.Server.Controllers;
 
 /// <summary>
 /// Módulo "Ocupación Edificios": consulta de marcaciones de ProWatch cargadas desde
@@ -16,10 +17,22 @@ public class OcupacionController : ControllerBase
     private const long MaxUploadBytes = 500L * 1024 * 1024;
 
     private readonly OcupacionService _service;
+    private readonly AuditService _audit;
 
-    public OcupacionController(OcupacionService service)
+    public OcupacionController(OcupacionService service, AuditService audit)
     {
         _service = service;
+        _audit = audit;
+    }
+
+    /// <summary>Filtros usados, para la bitácora (solo los que tienen valor).</summary>
+    private static string Describe(OcupacionFiltro f)
+    {
+        var parts = new List<string>();
+        void Add(string name, string? value) { if (!string.IsNullOrWhiteSpace(value)) parts.Add($"{name}={value.Trim()}"); }
+        Add("desde", f.FechaDesde); Add("hasta", f.FechaHasta); Add("empresa", f.Empresa); Add("ciudad", f.Ciudad);
+        Add("sede", f.Sede); Add("panel", f.Panel); Add("cedula", f.Cedula); Add("nombre", f.Nombre);
+        return parts.Count > 0 ? string.Join("; ", parts) : "sin filtros";
     }
 
     private static OcupacionFiltro Filtro(string? fechaDesde, string? fechaHasta, string? empresa, string? ciudad,
@@ -40,14 +53,20 @@ public class OcupacionController : ControllerBase
         Ok(await _service.GetFiltrosAsync(ct));
 
     [HttpGet("registros")]
-    public ActionResult<OcupacionPagina> Registros(
+    public async Task<ActionResult<OcupacionPagina>> Registros(
         string? fechaDesde, string? fechaHasta, string? empresa, string? ciudad,
         string? sede, string? panel, string? cedula, string? nombre,
         int page = 1, int perPage = 50, string sort = "fecha", string order = "desc")
     {
-        return Ok(_service.GetRegistros(
-            Filtro(fechaDesde, fechaHasta, empresa, ciudad, sede, panel, cedula, nombre),
-            page, perPage, sort, order));
+        var filtro = Filtro(fechaDesde, fechaHasta, empresa, ciudad, sede, panel, cedula, nombre);
+        var result = _service.GetRegistros(filtro, page, perPage, sort, order);
+
+        // Búsquedas de una persona (por cédula o nombre): se auditan; se omiten las demás páginas.
+        if (page == 1 && (!string.IsNullOrWhiteSpace(cedula) || !string.IsNullOrWhiteSpace(nombre)))
+        {
+            await _audit.LogAsync("ocupacion_consulta", $"{Describe(filtro)} -> {result.Total} marcaciones");
+        }
+        return Ok(result);
     }
 
     [HttpGet("export")]
@@ -58,6 +77,7 @@ public class OcupacionController : ControllerBase
     {
         var filtro = Filtro(fechaDesde, fechaHasta, empresa, ciudad, sede, panel, cedula, nombre);
         var stamp = DateTime.Now.ToString("yyyy-MM-dd HHmm");
+        await _audit.LogAsync("ocupacion_exporta", $"{formato.ToLowerInvariant()}: {Describe(filtro)}");
 
         if (string.Equals(formato, "csv", StringComparison.OrdinalIgnoreCase))
         {
@@ -104,7 +124,10 @@ public class OcupacionController : ControllerBase
 
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms, ct);
-            resultados.Add(await _service.CargarAsync(nombre, ms.ToArray(), ct));
+            var res = await _service.CargarAsync(nombre, ms.ToArray(), ct);
+            resultados.Add(res);
+            await _audit.LogAsync("ocupacion_carga",
+                $"{nombre}: {res.Estado}" + (res.Estado == "cargado" ? $", {res.FilasInsertadas} filas nuevas" : ""));
         }
         return Ok(new { resultados });
     }
@@ -122,6 +145,7 @@ public class OcupacionController : ControllerBase
     {
         var res = await _service.EliminarArchivoAsync(id, ct);
         if (res == null) return NotFound(new { message = "Archivo no encontrado." });
+        await _audit.LogAsync("ocupacion_borra", $"{res.Value.Nombre}: {res.Value.Borrados} registros");
         return Ok(new
         {
             id,

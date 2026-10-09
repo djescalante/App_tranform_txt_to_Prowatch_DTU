@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace UsuariosRetirados.Server.Services.Ocupacion;
+namespace PWExtendedApp.Server.Services.Ocupacion;
 
 /// <summary>
 /// Acceso a la base SQLite de "Ocupación Edificios" (prowatch.db). Es una base

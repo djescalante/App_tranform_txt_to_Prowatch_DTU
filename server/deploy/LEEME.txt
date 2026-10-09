@@ -36,8 +36,12 @@ Instalacion
 
 Despues de instalar
 -------------------
-- Respaldar la carpeta certs\ (certificado, su contrasena y el secreto JWT)
-  y la carpeta data\ (usuarios, historial, Lista VIP y prowatch.db).
+- Respaldar la carpeta certs\ (certificado, su contrasena y el secreto JWT).
+  Las bases de data\ se respaldan solas cada dia a las 2:00 en data\backups\
+  (se conservan 7 copias; prowatch.db ocupa ~800 MB por copia). Conviene copiar
+  data\backups\ a otro disco o servidor.
+- Las contrasenas iniciales son temporales: cada usuario debe cambiarla en su
+  primer ingreso.
 - Para quitar la advertencia de certificado en los equipos de los usuarios,
   importar certs\server.cer en "Entidades de certificacion raiz de confianza"
   (o distribuirlo por GPO).

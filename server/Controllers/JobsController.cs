@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using UsuariosRetirados.Server.Data;
-using UsuariosRetirados.Server.DTOs;
-using UsuariosRetirados.Server.Services;
+using PWExtendedApp.Server.Data;
+using PWExtendedApp.Server.DTOs;
+using PWExtendedApp.Server.Services;
 
-namespace UsuariosRetirados.Server.Controllers;
+namespace PWExtendedApp.Server.Controllers;
 
 [Authorize]
 [ApiController]
@@ -56,7 +56,7 @@ public class JobsController : ControllerBase
     }
 
     [HttpGet("{id}/download/{format}")]
-    public async Task<IActionResult> DownloadFile(int id, string format)
+    public async Task<IActionResult> DownloadFile(int id, string format, [FromServices] AuditService audit)
     {
         var job = await _db.ProcessingJobs.FindAsync(id);
         if (job == null) return NotFound(new { message = "Registro de proceso no encontrado." });
@@ -93,6 +93,7 @@ public class JobsController : ControllerBase
             _ => "application/octet-stream"
         };
 
+        await audit.LogAsync("dtu_descarga", $"Proceso {id}: {fileName}");
         return PhysicalFile(filePath, contentType, fileName);
     }
 }

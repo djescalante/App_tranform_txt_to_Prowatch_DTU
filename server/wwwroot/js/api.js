@@ -35,7 +35,9 @@ class ApiClient {
       headers
     });
 
-    if (response.status === 401) {
+    // 401 con sesión abierta = sesión vencida o revocada. En el login, en cambio, el 401
+    // trae el motivo (clave errada, cuenta bloqueada) y se muestra tal cual.
+    if (response.status === 401 && this.token && endpoint !== '/auth/login') {
       this.setToken(null);
       window.dispatchEvent(new CustomEvent('dtu:auth-error'));
       throw new Error('Sesión expirada o no autorizada.');
@@ -43,11 +45,16 @@ class ApiClient {
 
     if (!response.ok) {
       let errMessage = `Error ${response.status}`;
+      let errorData = null;
       try {
-        const errorData = await response.json();
+        errorData = await response.json();
         errMessage = errorData.message || errMessage;
       } catch (e) {
         errMessage = response.statusText || errMessage;
+      }
+      // Contraseña temporal: la app abre la ventana de cambio obligatorio.
+      if (response.status === 403 && errorData?.mustChangePassword) {
+        window.dispatchEvent(new CustomEvent('dtu:must-change-password'));
       }
       throw new Error(errMessage);
     }
@@ -72,6 +79,18 @@ class ApiClient {
 
   async getMe() {
     return await this.request('/auth/me');
+  }
+
+  async getAudit(q) {
+    return await this.get('/admin/audit', { q, limit: 300 });
+  }
+
+  async getBackups() {
+    return await this.request('/admin/backups');
+  }
+
+  async runBackup() {
+    return await this.request('/admin/backups', { method: 'POST' });
   }
 
   async changePassword(currentPassword, newPassword) {

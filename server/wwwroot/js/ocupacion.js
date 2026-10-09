@@ -1,7 +1,7 @@
 // ==========================================================================
 //  Módulo: Ocupación Edificios (PW Extended App)
 //  Marcaciones de ProWatch cargadas desde los reportes diarios en Excel.
-//  Usa las utilidades globales de app.js: showToast, escapeHtml, parseDmy,
+//  Usa las utilidades globales de core.js/shell.js: showToast, escapeHtml, parseDmy,
 //  formatDmy, initDatePicker, switchTab y state.
 // ==========================================================================
 
@@ -160,9 +160,11 @@
     container.innerHTML = items.map(i => `
       <div class="oc-bar-row">
         <span class="oc-bar-label" title="${escapeHtml(i.valor)}">${escapeHtml(i.valor)}</span>
-        <span class="oc-bar-track"><span class="oc-bar" style="display:block;width:${(i.total / max * 100).toFixed(2)}%"></span></span>
+        <span class="oc-bar-track"><span class="oc-bar" data-w="${(i.total / max * 100).toFixed(2)}"></span></span>
         <span class="oc-bar-value">${nf.format(i.total)}</span>
       </div>`).join('');
+    // Ancho por CSSOM: la CSP no permite atributos style en el HTML.
+    container.querySelectorAll('.oc-bar').forEach(bar => { bar.style.width = `${bar.dataset.w}%`; });
   }
 
   /**
@@ -621,7 +623,7 @@
       .forEach(id => { document.getElementById(id).value = ''; });
   }
 
-  /** Lo llama switchTab (app.js) al abrir una pestaña "oc-*". */
+  /** Lo llama switchTab (shell.js) al abrir una pestaña "oc-*". */
   function onShow(tab) {
     init();
     if (tab === 'oc-dashboard') loadDashboard();
@@ -632,5 +634,9 @@
     if (tab === 'oc-archivos') loadArchivos();
   }
 
-  window.ocupacion = { onShow };
+  registerModule({
+    name: 'ocupacion',
+    owns: tab => tab.startsWith('oc-'),
+    onShow
+  });
 })();

@@ -69,13 +69,20 @@ Opcionales (solo vista previa y XLSX; nunca en DTU ni TSV): `NOMBRE EMPLEADO`, `
 - **Solo HTTPS / TLS 1.3**: Kestrel escucha únicamente `https://0.0.0.0:443` con
   `SslProtocols=Tls13` (TLS 1.2 rechazado). El PFX vive en `server\certs\` (ignorado; contraseña en
   `pfx-password.txt` o `Kestrel__Endpoints__Https__Certificate__Password`). No reintroducir HTTP ni `Urls`.
-- **CSP estricto**: la SPA no debe usar handlers inline (`onclick=`) ni recursos externos
-  (fuentes/CDN); usar `data-*` + listeners delegados. `SecurityHeadersMiddleware` aplica HSTS, CSP,
-  nosniff, frame-deny, etc., y Kestrel oculta el header `Server`.
+- **CSP estricto** (`script-src 'self'; style-src 'self'`, **sin** `'unsafe-inline'`): la SPA no debe
+  usar handlers inline (`onclick=`), atributos `style="..."` (tampoco en plantillas JS), bloques
+  `<style>` ni recursos externos (fuentes/CDN). Usar `data-*` + listeners delegados, clases CSS (hay
+  utilidades al final de `styles.css`: `mb-100`, `fs-085`, `c-muted`…) o CSSOM (`el.style.x = …`, que
+  sí está permitido) para valores dinámicos. Ocultar con el atributo `hidden`. Íconos: sprite SVG en
+  `index.html` (`icon('nombre')` en JS), nada de emojis. `SecurityHeadersMiddleware` aplica HSTS,
+  CSP, nosniff, frame-deny, etc., y Kestrel oculta el header `Server`.
 - **Paridad contractual**: el TXT DTU del server debe ser **byte-idéntico** al histórico. El parser
   es `TextFieldParser`; verificar con SHA256 (hashes de referencia en `server\README.md`). No tocar
   el formato DTU.
-- **Cache de escaneo**: preview y process comparten un cache en memoria de 5 min (`ScanCache.cs`).
+- **Padrón en memoria** (`PadronCache.cs`): `CsvStreamingEngine.Load` lee el padrón una vez (TextFieldParser)
+  y `Filter` aplica los filtros en memoria con la misma semántica (preview ~35 ms en vez de ~12 s). Se
+  recarga si cambia ruta/tamaño/fecha del archivo; `PadronWarmup` lo precarga al arrancar y revisa cada
+  5 min. Paridad DTU/TSV verificada byte a byte en 5 combinaciones de filtros.
 - **Rutas robustas**: `AppPaths.cs` resuelve `estructura.json` y `salidas\` desde repo, `publish\`
   o servicio Windows; `AppPaths:*` de `appsettings.json` son el seed inicial (luego mandan
   `AppConfigs` en SQLite).
@@ -90,11 +97,36 @@ Opcionales (solo vista previa y XLSX; nunca en DTU ni TSV): `NOMBRE EMPLEADO`, `
   celda: **no cambiar** las conversiones ni el `fingerprint` SHA-1 o se duplicarán filas ya
   cargadas. Stats/filtros cacheados e invalidados al cargar/borrar; `OcupacionWarmup` los
   precalcula al arrancar. Consultar/exportar: todos; cargar/borrar: Admin.
-- **Menú por módulos**: botones `.nav-tab[data-tab]` agrupados en `.nav-group` del sidebar;
-  `[data-admin-only]` oculta lo que es solo de Admin; las pestañas `oc-*` las atiende
-  `window.ocupacion.onShow`.
+- **Frontend por módulos** (`wwwroot/js`, se cargan en este orden): `api.js` (cliente HTTP),
+  `core.js` (estado, utilidades, calendario, accesibilidad de ventanas, `registerModule`), un archivo
+  por módulo (`dtu.js`, `ocupacion.js`, `admin.js`) y `shell.js` al final (sesión, menú, rutas
+  `#/<pestaña>`, cambio de contraseña). Cada módulo se registra con
+  `registerModule({ name, tabs | owns, init, onLogin, onShow })`. Agregar una sección = botón
+  `.nav-tab[data-tab]` en un `.nav-group` + `<section id="tab-…" class="tab-pane">` + su módulo.
+  `[data-admin-only]` oculta lo que es solo de Admin. Las ventanas `.modal-overlay` ya cierran con
+  Esc, atrapan el foco y lo devuelven (salvo `data-forced`).
+- **Errores hacia el usuario**: nunca `ex.Message`; mensaje genérico con referencia
+  (`ErrorReference`) y el detalle al log con esa referencia. Excepciones no controladas de la API:
+  `UseApiExceptionHandler`. En Ocupación, `ExcelEstructuraException` = mensaje propio para el usuario;
+  cualquier otro error de lectura (archivo dañado) se muestra genérico.
+- **Procesos DTU**: `EmpleadosController.Process` se ejecuta de a uno (semáforo): dos procesos de la
+  misma fecha escribirían los mismos archivos.
+- **Bitácora** (`AuditService`, tabla `AuditLog` de la base de usuarios, 1 año): ingresos (correctos,
+  fallidos, bloqueos), cambio de contraseña, consultas de Ocupación por cédula/nombre (solo página 1),
+  exportaciones, cargas y borrados de Excel, descargas DTU. Admin la consulta en Administración
+  (`GET /api/admin/audit?q=`). Al auditar algo nuevo, agregar su etiqueta en `AUDIT_ACTIONS` (admin.js).
 - **Admin principal**: la cuenta `admin` (`User.PrincipalAdminUsername`) no se puede eliminar, desactivar ni pasar a Operador desde la app.
-- **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!` — cambiar en producción.
+- **Nombres**: proyecto/ejecutable `PWExtendedApp.Server` (antes `UsuariosRetirados.Server`). Se
+  conservan a propósito los identificadores JWT `UsuariosRetiradosServer`/`UsuariosRetiradosClient`
+  (cambiarlos cerraría todas las sesiones) y la base `usuarios_retirados.db` (módulo DTU + usuarios).
+- **Credenciales seed**: `admin/Admin123!` y `operador1..5/Operador123!`. Son temporales: con ellas la API
+  solo permite `/api/auth/*` (403 `mustChangePassword`) hasta cambiarlas. Lo mismo para claves que asigna
+  un admin. Política en `PasswordPolicy.cs` (8+ caracteres, letras y números, no el usuario ni las del
+  seed). Login: 10 intentos/min por IP y bloqueo de la cuenta 15 min tras 5 fallos (admin desbloquea).
+  El token JWT solo se acepta en el header `Authorization` (nunca `?token=`).
+- **Respaldos** (`BackupService.cs`): copia en caliente de SQLite de ambas bases cada día a las
+  `Backup:Hour` (2) en `Backup:Dir` (por defecto `<carpeta de la base>\backups`), conserva
+  `Backup:Keep` (7) por base; Administración muestra el estado y permite "Respaldar ahora".
 - CORS por defecto vacío = mismo origen; `Cors:AllowedOrigins` permite lista blanca o `["*"]`.
 - Si `Instalar-Servicio.ps1` corre con PS 5.1, evitar sintaxis PS7 (`?.`,
   `RandomNumberGenerator::Fill`).
@@ -115,9 +147,15 @@ Opcionales (solo vista previa y XLSX; nunca en DTU ni TSV): `NOMBRE EMPLEADO`, `
 
 ## Verificación
 - Build app web (SDK x64):
-  `& "C:\Program Files\dotnet\dotnet.exe" build server\UsuariosRetirados.Server.csproj -c Release`
+  `& "C:\Program Files\dotnet\dotnet.exe" build server\PWExtendedApp.Server.csproj -c Release`
 - Paridad del TXT DTU (SHA256) y smoke test de API: ver `server\README.md`.
-- No hay framework de tests; la verificación es manual con los comandos anteriores.
+- **Pruebas automáticas** (xUnit, `tests\PWExtendedApp.Server.Tests`):
+  `& "C:\Program Files\dotnet\dotnet.exe" test tests\PWExtendedApp.Server.Tests`
+  Fijan byte a byte el TXT DTU y el TSV, la lectura Windows-1252 y los filtros del padrón, y la
+  paridad de Ocupación con la app Python (campos + fingerprint) sobre datos **inventados** en
+  `Fixtures\`. `Fixtures\generar_fixtures.py` regenera los datos y `esperado.json` con la lógica
+  original de `ingest.py` (requiere openpyxl): no regenerar `esperado.json` desde el C#.
+  `nuget.config` (raíz) agrega nuget.org para equipos que solo tienen el origen offline de VS.
 - Regla de ejecución en el server: los `.cmd` usan `-ExecutionPolicy Bypass`; una GPO podría
   bloquearlos.
 

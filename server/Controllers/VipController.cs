@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using UsuariosRetirados.Server.Data;
-using UsuariosRetirados.Server.DTOs;
-using UsuariosRetirados.Server.Models;
+using PWExtendedApp.Server.Data;
+using PWExtendedApp.Server.DTOs;
+using PWExtendedApp.Server.Models;
 
-namespace UsuariosRetirados.Server.Controllers;
+namespace PWExtendedApp.Server.Controllers;
 
 /// <summary>
 /// Lista VIP: cédulas que nunca deben exportarse en los insumos de bloqueo.

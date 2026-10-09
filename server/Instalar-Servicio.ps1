@@ -101,20 +101,22 @@ if (Remove-AppService $LegacyServiceName) {
     Write-Host "    Servicio anterior '$LegacyServiceName' eliminado." -ForegroundColor Yellow
 }
 
-# 3. Compilar y publicar
+# 3. Compilar y publicar (en una carpeta limpia: publish no borra archivos de versiones
+#    anteriores, p. ej. el ejecutable con el nombre viejo UsuariosRetirados.Server.exe).
 Write-Host "==> Compilando y publicando aplicacion..." -ForegroundColor Cyan
+if (Test-Path $publishDir) { Remove-Item -LiteralPath $publishDir -Recurse -Force }
 $dotnetExe = "C:\Program Files\dotnet\dotnet.exe"
 if (-not (Test-Path $dotnetExe)) {
     $cmd = Get-Command dotnet -ErrorAction SilentlyContinue
     if ($cmd) { $dotnetExe = $cmd.Source }
 }
-& $dotnetExe publish (Join-Path $serverDir "UsuariosRetirados.Server.csproj") `
+& $dotnetExe publish (Join-Path $serverDir "PWExtendedApp.Server.csproj") `
     -c Release -o $publishDir --self-contained false --source https://api.nuget.org/v3/index.json
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Fallo la publicacion de la aplicacion."
     exit 1
 }
-$exePath = Join-Path $publishDir "UsuariosRetirados.Server.exe"
+$exePath = Join-Path $publishDir "PWExtendedApp.Server.exe"
 if (-not (Test-Path $exePath)) {
     Write-Error "No se encontro el ejecutable en '$exePath'."
     exit 1

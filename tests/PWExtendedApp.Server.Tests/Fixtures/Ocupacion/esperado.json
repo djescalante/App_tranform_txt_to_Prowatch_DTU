@@ -1,0 +1,132 @@
+{
+ "Invalido.xlsx": {
+  "error": "No se encontro la fila de encabezado (Nombres/Cedula)"
+ },
+ "Ocupacion Edificios 3-2-2026.xlsx": {
+  "errores": 1,
+  "registros": [
+   {
+    "fecha": "2026-02-03",
+    "nombres": "Ana",
+    "apellidos": "Gómez",
+    "panel": "P1",
+    "sede_administrativa": "Sede Norte",
+    "cedula": "1012345678",
+    "tarjeta_acceso": "123456",
+    "ciudad": "Medellín",
+    "empresa": "ACME",
+    "first_swipe": "2026-02-03 08:15:00",
+    "last_swipe": "2026-02-03 17:40:05",
+    "fingerprint": "17f20b22e51c31107fc60533e45eeacbaad8a5af"
+   },
+   {
+    "fecha": "2026-02-03",
+    "nombres": "Ana",
+    "apellidos": "Gómez",
+    "panel": "P1",
+    "sede_administrativa": "Sede Norte",
+    "cedula": "1012345678",
+    "tarjeta_acceso": "123456",
+    "ciudad": "Medellín",
+    "empresa": "ACME",
+    "first_swipe": "2026-02-03 08:15:00",
+    "last_swipe": "2026-02-03 17:40:05",
+    "fingerprint": "17f20b22e51c31107fc60533e45eeacbaad8a5af"
+   },
+   {
+    "fecha": "2026-02-03",
+    "nombres": "Luis",
+    "apellidos": "Pérez Díaz",
+    "panel": "P2",
+    "sede_administrativa": "Sede Sur",
+    "cedula": "1098765432",
+    "tarjeta_acceso": "00123",
+    "ciudad": "Bogotá",
+    "empresa": "ACME, S.A.",
+    "first_swipe": "2026-02-03 07:01:59",
+    "last_swipe": "",
+    "fingerprint": "1d6c6ec8c3c60fa46a4df2df69b3d48b0d9f7b5d"
+   },
+   {
+    "fecha": "2026-02-03",
+    "nombres": "Marta",
+    "apellidos": "Ruiz",
+    "panel": "P3",
+    "sede_administrativa": "Sede Centro",
+    "cedula": "52123456",
+    "tarjeta_acceso": "7788",
+    "ciudad": "Cali",
+    "empresa": "Beta",
+    "first_swipe": "",
+    "last_swipe": "",
+    "fingerprint": "2c741e8f082a2050cffd4ece1a966e429e094683"
+   },
+   {
+    "fecha": "2026-02-03",
+    "nombres": "Juan Carlos",
+    "apellidos": "Ortiz López",
+    "panel": "P4",
+    "sede_administrativa": "Sede Norte",
+    "cedula": "1144556677",
+    "tarjeta_acceso": "990011",
+    "ciudad": "Medellín",
+    "empresa": "ACME",
+    "first_swipe": "2026-02-03 23:59:59",
+    "last_swipe": "2026-02-04 00:30:00",
+    "fingerprint": "171c40fad73efdfa5734d7320e47fca9db275316"
+   }
+  ]
+ },
+ "Ocupacion Edificios 4-2-2026.xlsx": {
+  "errores": 0,
+  "registros": [
+   {
+    "fecha": "2026-02-04",
+    "nombres": "Pedro",
+    "apellidos": "Mora",
+    "panel": "P9",
+    "sede_administrativa": "Sede Sur",
+    "cedula": "70100200",
+    "tarjeta_acceso": "55",
+    "ciudad": "Bogotá",
+    "empresa": "Gamma",
+    "first_swipe": "2026-02-04 06:00:00",
+    "last_swipe": "2026-02-04 18:00:00",
+    "fingerprint": "e98c8c4596c0422f8b294ec5a82065f47f78e4bf"
+   },
+   {
+    "fecha": "2026-02-04",
+    "nombres": "Rosa",
+    "apellidos": "Vélez",
+    "panel": "P9",
+    "sede_administrativa": "Sede Sur",
+    "cedula": "70100201",
+    "tarjeta_acceso": "56",
+    "ciudad": "Bogotá",
+    "empresa": "Gamma",
+    "first_swipe": "2026-02-04 06:30:00",
+    "last_swipe": "",
+    "fingerprint": "e617e7810c60e3a27f7e4c51c1224d6dd6818d8c"
+   }
+  ]
+ },
+ "Sin hoja Sheet1 5-2-2026.xlsx": {
+  "errores": 0,
+  "registros": [
+   {
+    "fecha": "2026-02-05",
+    "nombres": "Lina",
+    "apellidos": "Cruz",
+    "panel": "P1",
+    "sede_administrativa": "Sede Norte",
+    "cedula": "33445566",
+    "tarjeta_acceso": "77",
+    "ciudad": "Cali",
+    "empresa": "ACME",
+    "first_swipe": "2026-02-05 07:00:00",
+    "last_swipe": "",
+    "fingerprint": "10a09a719be3108a16daed56c4333673c3901d21"
+   }
+  ]
+ }
+}

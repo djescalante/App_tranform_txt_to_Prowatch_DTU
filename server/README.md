@@ -13,12 +13,14 @@ descargas desde el navegador.
 | `Services/CsvStreamingEngine.cs` | Lectura Windows-1252 con `TextFieldParser` y filtros (ESTADO, DOCUMENTO, NOMBRE SOCIEDAD, FECHA EVENTO; nombre y apellido para vista previa y XLSX) |
 | `Services/ExportService.cs` | Genera TXT DTU, TSV y XLSX (ClosedXML, sin Excel instalado) |
 | `Services/SchemaValidator.cs` | Valida encabezado contra `estructura.json` |
-| `Services/ScanCache.cs` | Cache 5 min del último escaneo (evita doble pasada preview+process) |
+| `Services/PadronCache.cs` | Padrón leído una vez y filtrado en memoria; se recarga si cambia el archivo |
+| `Services/PasswordPolicy.cs` | Reglas de contraseña y de bloqueo por intentos fallidos |
+| `Services/BackupService.cs` | Respaldo diario en caliente de las bases SQLite |
 | `Services/AppPaths.cs` | Resuelve `estructura.json` y `salidas\` desde repo, publish o servicio |
 | `Services/JwtService.cs` | Emite JWT HS256 (7 días) |
 | `Services/Ocupacion/` | Módulo Ocupación Edificios: `prowatch.db`, carga de Excel, consultas, export |
 | `Controllers/` | `Auth`, `Empleados`, `Jobs`, `Admin`, `Vip`, `Ocupacion` |
-| `wwwroot/` | SPA vanilla con menú por módulos (`app.js` = carcasa + DTU, `ocupacion.js`) |
+| `wwwroot/` | SPA vanilla por módulos: `core.js`, `shell.js` (sesión, menú, rutas `#/…`), `dtu.js`, `ocupacion.js`, `admin.js` |
 | `Iniciar-Servidor.cmd` | Lanzador de desarrollo (SDK x64, `https://localhost`, TLS 1.3) |
 | `Instalar-Servicio.ps1` | Publica e instala como servicio Windows con `Jwt__Secret` y certificado TLS propios |
 
@@ -58,6 +60,7 @@ El server **solo escucha HTTPS en el puerto 443**; no hay HTTP.
 | `Kestrel:Endpoints:Https:Url` | `https://0.0.0.0:443` (único listener) |
 | `Kestrel:Endpoints:Https:Certificate:Path` | Ruta del PFX (`certs/server.pfx`) |
 | `Kestrel:Endpoints:Https:SslProtocols` | `["Tls13"]` (TLS 1.2 y anteriores rechazados) |
+| `Backup:Dir` / `Backup:Hour` / `Backup:Keep` | Carpeta de respaldos (por defecto `<carpeta de la base>\backups`), hora diaria (2) y copias que se conservan por base (7) |
 
 Overrides por variable de entorno (doble guion bajo): `Jwt__Secret`,
 `Kestrel__Endpoints__Https__Certificate__Password`, `ConnectionStrings__DefaultConnection`,
@@ -88,14 +91,33 @@ Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)"
   `certs\server.cer` en `Cert:\LocalMachine\Root` de cada cliente (o aceptar la
   advertencia una vez). Alternativa recomendada en dominio: emitir el cert con AD CS.
 
+### Certificado del dominio (AD CS) — para el área de infraestructura
+
+Con un certificado emitido por la CA del dominio, ningún navegador del dominio muestra
+advertencias y no hay que distribuir `server.cer`.
+
+1. Solicitar un certificado con la plantilla **Servidor web** (Web Server) de la CA interna:
+   - Nombres alternativos (SAN, tipo DNS): el nombre corto del servidor, su FQDN
+     (`servidor.dominio.local`) y cualquier alias DNS con el que se vaya a entrar.
+   - Clave RSA 2048 o superior, **exportable**; uso extendido: Autenticación de servidor.
+2. Exportarlo como **PFX con la clave privada** y una contraseña.
+3. Instalar indicando el PFX (los instaladores ya lo aceptan):
+   ```powershell
+   # Paquete del servidor
+   .\Instalar.cmd -CertPath D:\certs\pwextended.pfx -CertPassword '<contraseña>'
+   # Desde el repo
+   .\server\Instalar-Servicio.ps1 -Action Install -CertPath D:\certs\pwextended.pfx -CertPassword '<contraseña>'
+   ```
+   La cuenta del servicio (LocalSystem) debe poder leer el PFX. Al renovarlo, repetir el paso 3.
+
 ## Cabeceras de seguridad
 
 El middleware `SecurityHeadersMiddleware` agrega en cada respuesta:
 `Strict-Transport-Security`, `Content-Security-Policy` estricto
-(`script-src 'self'`, sin `unsafe-inline` para scripts), `X-Content-Type-Options`,
+(`script-src 'self'; style-src 'self'`, sin `unsafe-inline` ni para scripts ni para estilos), `X-Content-Type-Options`,
 `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y
 `Cross-Origin-Opener-Policy`; además Kestrel no expone el header `Server`.
-**La SPA no usa handlers inline ni recursos externos** (fuentes del sistema):
+**La SPA no usa handlers inline, atributos style ni recursos externos** (fuentes del sistema):
 si se agregan, actualizar la CSP o el navegador los bloqueará.
 
 ## Despliegue como servicio Windows
@@ -119,13 +141,18 @@ Los instaladores de .NET 10 para el servidor están en `prerequisitos\` (ver
 ## API
 
 Todas las rutas requieren `Authorization: Bearer <token>` salvo `login`.
-Las descargas aceptan además `?token=` (necesario para `<a href>`).
+El token solo se acepta en el header (las descargas usan `fetch` con `Authorization`, nunca `?token=`).
+Con una contraseña temporal (seed o asignada por un admin) todo responde 403
+`{ mustChangePassword: true }` salvo `/api/auth/*`, hasta que el usuario la cambie.
 
 | Método y ruta | Rol | Descripción |
 |---|---|---|
 | `POST /api/auth/login` | — | Devuelve JWT + datos del usuario |
 | `GET /api/auth/me` | auth | Usuario actual |
-| `POST /api/auth/change-password` | auth | Cambia la contraseña (mínimo 8, distinta a la actual) |
+| `POST /api/auth/change-password` | auth | Cambia la contraseña (política de `PasswordPolicy`) |
+| `GET /api/admin/audit?q=&limit=` | Admin | Bitácora de auditoría (más reciente primero) |
+| `GET /api/admin/backups` | Admin | Estado de los respaldos y copias existentes |
+| `POST /api/admin/backups` | Admin | Respalda ahora ambas bases |
 | `GET /api/empleados/info` | auth | Estado del padrón, columnas, fecha sugerida (mtime − 1 día) |
 | `GET /api/empleados/options` | auth | Estados, sociedades y fecha sugerida |
 | `POST /api/empleados/preview` | auth | Cuenta coincidencias y muestra hasta `limit` filas |
@@ -145,7 +172,7 @@ Las descargas aceptan además `?token=` (necesario para `<a href>`).
 | `GET /api/ocupacion/archivos` | auth | Archivos cargados |
 | `DELETE /api/ocupacion/archivos/{id}` | Admin | Elimina un archivo y sus registros |
 
-Ejemplos listos para usar en `UsuariosRetirados.Server.http`.
+Ejemplos listos para usar en `PWExtendedApp.Server.http`.
 
 ## Seguridad
 

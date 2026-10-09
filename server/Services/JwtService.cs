@@ -2,9 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using UsuariosRetirados.Server.Models;
+using PWExtendedApp.Server.Models;
 
-namespace UsuariosRetirados.Server.Services;
+namespace PWExtendedApp.Server.Services;
 
 public interface IJwtService
 {
@@ -22,7 +22,8 @@ public class JwtService : IJwtService
 
     public string GenerateToken(User user)
     {
-        var secret = _config["Jwt:Secret"] ?? "UsuariosRetirados_SecretKey_2026_Enterprise_DTU_SecurityKey!";
+        var secret = _config["Jwt:Secret"]
+            ?? throw new InvalidOperationException("Falta Jwt:Secret (variable Jwt__Secret).");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

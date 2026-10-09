@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using UsuariosRetirados.Server.Data;
-using UsuariosRetirados.Server.DTOs;
-using UsuariosRetirados.Server.Models;
-using UsuariosRetirados.Server.Services;
+using PWExtendedApp.Server.Data;
+using PWExtendedApp.Server.DTOs;
+using PWExtendedApp.Server.Models;
+using PWExtendedApp.Server.Services;
 
-namespace UsuariosRetirados.Server.Controllers;
+namespace PWExtendedApp.Server.Controllers;
 
 [Authorize]
 [ApiController]
@@ -17,10 +17,12 @@ public class EmpleadosController : ControllerBase
     private readonly ICsvStreamingEngine _csvEngine;
     private readonly IExportService _exportService;
     private readonly ISchemaValidator _schemaValidator;
-    private readonly IScanCache _scanCache;
+    private readonly PadronCache _padron;
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _config;
     private readonly ILogger<EmpleadosController> _logger;
+
+    private static readonly SemaphoreSlim ProcessLock = new(1, 1);
 
     private static readonly List<string> SociedadesFijas =
     [
@@ -42,7 +44,7 @@ public class EmpleadosController : ControllerBase
         ICsvStreamingEngine csvEngine,
         IExportService exportService,
         ISchemaValidator schemaValidator,
-        IScanCache scanCache,
+        PadronCache padron,
         IWebHostEnvironment env,
         IConfiguration config,
         ILogger<EmpleadosController> logger)
@@ -51,18 +53,13 @@ public class EmpleadosController : ControllerBase
         _csvEngine = csvEngine;
         _exportService = exportService;
         _schemaValidator = schemaValidator;
-        _scanCache = scanCache;
+        _padron = padron;
         _env = env;
         _config = config;
         _logger = logger;
     }
 
-    private async Task<string> GetInputPathAsync()
-    {
-        var cfg = await _db.AppConfigs.FirstOrDefaultAsync(c => c.Key == "InputPath");
-        if (cfg != null && !string.IsNullOrWhiteSpace(cfg.Value)) return cfg.Value;
-        return _config["AppPaths:InputPath"] ?? string.Empty;
-    }
+    private Task<string> GetInputPathAsync() => PadronCache.ResolveInputPathAsync(_db, _config);
 
     private async Task<string> GetOutputDirAsync()
     {
@@ -71,34 +68,11 @@ public class EmpleadosController : ControllerBase
         return _config["AppPaths:OutputDir"] ?? AppPaths.OutputRelative;
     }
 
-    private static string BuildScanKey(string path, string? fechaEvento, IEnumerable<string>? sociedades, IEnumerable<string>? estados)
-    {
-        string Normalize(IEnumerable<string>? values) =>
-            values == null
-                ? string.Empty
-                : string.Join(",",
-                    values.Select(v => v.Trim().ToUpperInvariant())
-                          .Where(v => v.Length > 0)
-                          .OrderBy(v => v, StringComparer.Ordinal));
-
-        var fi = new FileInfo(path);
-        long length = fi.Exists ? fi.Length : 0;
-        long ticks = fi.Exists ? fi.LastWriteTimeUtc.Ticks : 0;
-
-        return $"scan|{path.ToLowerInvariant()}|{length}|{ticks}|{(fechaEvento ?? string.Empty).Trim()}|{Normalize(sociedades)}|{Normalize(estados)}";
-    }
-
+    /// <summary>Filtra el padrón en memoria (se lee del disco solo si el archivo cambió).</summary>
     private FilterResult GetOrScan(string path, string? fechaEvento, IEnumerable<string>? sociedades, IEnumerable<string>? estados)
     {
-        var key = BuildScanKey(path, fechaEvento, sociedades, estados);
-        if (_scanCache.TryGet(key, out var cached))
-        {
-            return cached;
-        }
-
-        var result = _csvEngine.FilterRows(path, fechaEvento, sociedades, estados, maxCollect: 0);
-        _scanCache.Set(key, result);
-        return result;
+        var padron = _padron.Get(path);
+        return _csvEngine.Filter(padron, fechaEvento, sociedades, estados);
     }
 
     private async Task<Dictionary<string, string>> GetVipMapAsync()
@@ -254,8 +228,10 @@ public class EmpleadosController : ControllerBase
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            _logger.LogError(ex, "Fallo la vista previa del padrón {Path}", path);
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = $"Error al leer el padrón: {ex.Message}" });
+            var code = ErrorReference.NewCode();
+            _logger.LogError(ex, "Fallo la vista previa del padrón {Path} (ref {Ref})", path, code);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = ErrorReference.Message("No se pudo leer el padrón.", code) });
         }
     }
 
@@ -288,6 +264,8 @@ public class EmpleadosController : ControllerBase
         var fi = new FileInfo(path);
         var username = User.Identity?.Name ?? "Sistema";
 
+        // Un proceso a la vez: dos procesos de la misma fecha escribirían los mismos archivos.
+        await ProcessLock.WaitAsync(HttpContext.RequestAborted);
         try
         {
             var result = GetOrScan(path, req.FechaEvento, req.Sociedades, req.Estados);
@@ -339,7 +317,8 @@ public class EmpleadosController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fallo el proceso de exportación para {Path} -> {OutDir}", path, outDir);
+            var code = ErrorReference.NewCode();
+            _logger.LogError(ex, "Fallo el proceso de exportación para {Path} -> {OutDir} (ref {Ref})", path, outDir, code);
 
             _db.ProcessingJobs.Add(new ProcessingJob
             {
@@ -353,11 +332,16 @@ public class EmpleadosController : ControllerBase
                 TotalMatchedRows = 0,
                 ExecutionDurationMs = 0,
                 Status = "Failed",
-                ErrorMessage = ex.Message
+                ErrorMessage = $"{ex.Message} (ref {code})"
             });
             await _db.SaveChangesAsync();
 
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = $"Error al procesar el padrón: {ex.Message}" });
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = ErrorReference.Message("No se pudo completar el proceso.", code) });
+        }
+        finally
+        {
+            ProcessLock.Release();
         }
     }
 }

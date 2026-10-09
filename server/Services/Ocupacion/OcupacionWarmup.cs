@@ -1,4 +1,4 @@
-namespace UsuariosRetirados.Server.Services.Ocupacion;
+namespace PWExtendedApp.Server.Services.Ocupacion;
 
 /// <summary>
 /// Al arrancar crea el esquema si falta y precalcula el dashboard sin filtros y los

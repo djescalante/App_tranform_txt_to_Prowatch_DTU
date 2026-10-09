@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UsuariosRetirados.Server.Models;
+namespace PWExtendedApp.Server.Models;
 
 public class User
 {
@@ -33,4 +33,16 @@ public class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? LastLoginAt { get; set; }
+
+    /// <summary>
+    /// Contraseña temporal (seed o asignada por un admin): mientras sea true, la API solo
+    /// permite cambiarla.
+    /// </summary>
+    public bool MustChangePassword { get; set; }
+
+    /// <summary>Intentos fallidos consecutivos (se reinicia al ingresar o al bloquear).</summary>
+    public int FailedLoginCount { get; set; }
+
+    /// <summary>Bloqueo temporal por intentos fallidos (UTC).</summary>
+    public DateTime? LockoutUntil { get; set; }
 }

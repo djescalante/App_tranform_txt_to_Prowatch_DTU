@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text;
 using Microsoft.VisualBasic.FileIO;
-using UsuariosRetirados.Server.DTOs;
+using PWExtendedApp.Server.DTOs;
 
-namespace UsuariosRetirados.Server.Services;
+namespace PWExtendedApp.Server.Services;
 
 public record FilterResult(
     int TotalRows,
@@ -13,16 +13,27 @@ public record FilterResult(
     long ElapsedMs
 );
 
+/// <summary>
+/// Padrón leído una sola vez: solo las columnas que usa la app, en el orden del archivo.
+/// Lo mantiene en memoria <see cref="PadronCache"/> y se vuelve a leer si el archivo cambia.
+/// </summary>
+public record PadronSnapshot(
+    string Path,
+    long Length,
+    DateTime LastWriteUtc,
+    int TotalRows,
+    int MalformedCount,
+    IReadOnlyList<EmpleadoRowDto> Rows,
+    long LoadMs
+);
+
 public interface ICsvStreamingEngine
 {
     Encoding GetWindows1252Encoding();
     string[]? ReadHeader(string filePath);
-    FilterResult FilterRows(
-        string filePath,
-        string? fechaEvento,
-        IEnumerable<string>? sociedades,
-        IEnumerable<string>? estados,
-        int maxCollect = 0);
+    PadronSnapshot Load(string filePath);
+    FilterResult Filter(PadronSnapshot padron, string? fechaEvento, IEnumerable<string>? sociedades,
+        IEnumerable<string>? estados);
 }
 
 public class CsvStreamingEngine : ICsvStreamingEngine
@@ -64,20 +75,100 @@ public class CsvStreamingEngine : ICsvStreamingEngine
         return fields?.Select(f => f.Trim()).ToArray();
     }
 
-    public FilterResult FilterRows(
-        string filePath,
-        string? fechaEvento,
-        IEnumerable<string>? sociedades,
-        IEnumerable<string>? estados,
-        int maxCollect = 0)
+    /// <summary>
+    /// Lee el padrón completo con TextFieldParser (una pasada) y guarda, de cada fila con las
+    /// columnas requeridas, los mismos valores (Trim) que antes leía cada filtro por separado.
+    /// </summary>
+    public PadronSnapshot Load(string filePath)
     {
         var sw = Stopwatch.StartNew();
-        var matchedRows = new List<EmpleadoRowDto>();
-
-        if (!File.Exists(filePath))
+        var fi = new FileInfo(filePath);
+        var rows = new List<EmpleadoRowDto>();
+        if (!fi.Exists)
         {
-            return new FilterResult(0, 0, 0, matchedRows, 0);
+            return new PadronSnapshot(filePath, 0, DateTime.MinValue, 0, 0, rows, 0);
         }
+
+        using var parser = NewParser(filePath, GetWindows1252Encoding());
+
+        var headerFields = parser.ReadFields();
+        if (headerFields == null)
+        {
+            return new PadronSnapshot(filePath, fi.Length, fi.LastWriteTimeUtc, 0, 0, rows, sw.ElapsedMilliseconds);
+        }
+
+        int colEstado = -1, colDoc = -1, colSoc = -1, colFecha = -1;
+        // Opcionales: si el padrón no las trae, la fila sale con nombre vacío.
+        int colNombre = -1, colApellido = -1;
+
+        for (int i = 0; i < headerFields.Length; i++)
+        {
+            var name = headerFields[i].Trim();
+            if (colEstado == -1 && string.Equals(name, "ESTADO", StringComparison.OrdinalIgnoreCase)) colEstado = i;
+            else if (colDoc == -1 && string.Equals(name, "DOCUMENTO", StringComparison.OrdinalIgnoreCase)) colDoc = i;
+            else if (colSoc == -1 && string.Equals(name, "NOMBRE SOCIEDAD", StringComparison.OrdinalIgnoreCase)) colSoc = i;
+            else if (colFecha == -1 && string.Equals(name, "FECHA EVENTO", StringComparison.OrdinalIgnoreCase)) colFecha = i;
+            else if (colNombre == -1 && string.Equals(name, "NOMBRE EMPLEADO", StringComparison.OrdinalIgnoreCase)) colNombre = i;
+            else if (colApellido == -1 && string.Equals(name, "APELLIDO EMPLEADO", StringComparison.OrdinalIgnoreCase)) colApellido = i;
+        }
+
+        if (colEstado == -1 || colDoc == -1 || colSoc == -1 || colFecha == -1)
+        {
+            throw new InvalidOperationException("El encabezado del archivo no contiene las columnas requeridas (ESTADO, DOCUMENTO, NOMBRE SOCIEDAD, FECHA EVENTO).");
+        }
+
+        int maxColIndex = Math.Max(Math.Max(colEstado, colDoc), Math.Max(colSoc, colFecha));
+        int totalRows = 0;
+        int malformed = 0;
+
+        // Estado, sociedad y fecha se repiten mucho: se comparte una sola instancia de cada valor.
+        var pool = new Dictionary<string, string>(StringComparer.Ordinal);
+        string Shared(string v)
+        {
+            if (pool.TryGetValue(v, out var existing)) return existing;
+            pool[v] = v;
+            return v;
+        }
+
+        while (!parser.EndOfData)
+        {
+            string[]? fields;
+            try
+            {
+                fields = parser.ReadFields();
+            }
+            catch (MalformedLineException)
+            {
+                malformed++;
+                continue;
+            }
+
+            if (fields == null) continue;
+            totalRows++;
+            if (fields.Length <= maxColIndex) continue;
+
+            rows.Add(new EmpleadoRowDto(
+                Shared(fields[colEstado].Trim()),
+                fields[colDoc].Trim(),
+                Shared(fields[colSoc].Trim()),
+                Shared(fields[colFecha].Trim()),
+                OptionalField(fields, colNombre),
+                OptionalField(fields, colApellido)));
+        }
+
+        rows.TrimExcess();
+        sw.Stop();
+        return new PadronSnapshot(filePath, fi.Length, fi.LastWriteTimeUtc, totalRows, malformed, rows, sw.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// Aplica los filtros sobre el padrón en memoria. Misma semántica que la lectura en
+    /// streaming original (mismo orden de filas y mismas comparaciones).
+    /// </summary>
+    public FilterResult Filter(PadronSnapshot padron, string? fechaEvento, IEnumerable<string>? sociedades,
+        IEnumerable<string>? estados)
+    {
+        var sw = Stopwatch.StartNew();
 
         // Normalize states (expand 'Con terminación de contrato' to both with and without accent)
         var estadoSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -116,76 +207,17 @@ public class CsvStreamingEngine : ICsvStreamingEngine
 
         string? fechaFiltro = string.IsNullOrWhiteSpace(fechaEvento) ? null : fechaEvento.Trim();
 
-        using var parser = NewParser(filePath, GetWindows1252Encoding());
-
-        var headerFields = parser.ReadFields();
-        if (headerFields == null)
+        var matched = new List<EmpleadoRowDto>();
+        foreach (var row in padron.Rows)
         {
-            sw.Stop();
-            return new FilterResult(0, 0, 0, matchedRows, sw.ElapsedMilliseconds);
-        }
-
-        int colEstado = -1, colDoc = -1, colSoc = -1, colFecha = -1;
-        // Opcionales: si el padrón no las trae, la fila sale con nombre vacío.
-        int colNombre = -1, colApellido = -1;
-
-        for (int i = 0; i < headerFields.Length; i++)
-        {
-            var name = headerFields[i].Trim();
-            if (colEstado == -1 && string.Equals(name, "ESTADO", StringComparison.OrdinalIgnoreCase)) colEstado = i;
-            else if (colDoc == -1 && string.Equals(name, "DOCUMENTO", StringComparison.OrdinalIgnoreCase)) colDoc = i;
-            else if (colSoc == -1 && string.Equals(name, "NOMBRE SOCIEDAD", StringComparison.OrdinalIgnoreCase)) colSoc = i;
-            else if (colFecha == -1 && string.Equals(name, "FECHA EVENTO", StringComparison.OrdinalIgnoreCase)) colFecha = i;
-            else if (colNombre == -1 && string.Equals(name, "NOMBRE EMPLEADO", StringComparison.OrdinalIgnoreCase)) colNombre = i;
-            else if (colApellido == -1 && string.Equals(name, "APELLIDO EMPLEADO", StringComparison.OrdinalIgnoreCase)) colApellido = i;
-        }
-
-        if (colEstado == -1 || colDoc == -1 || colSoc == -1 || colFecha == -1)
-        {
-            throw new InvalidOperationException("El encabezado del archivo no contiene las columnas requeridas (ESTADO, DOCUMENTO, NOMBRE SOCIEDAD, FECHA EVENTO).");
-        }
-
-        int maxColIndex = Math.Max(Math.Max(colEstado, colDoc), Math.Max(colSoc, colFecha));
-        int totalRows = 0;
-        int malformed = 0;
-        int matchedCount = 0;
-
-        while (!parser.EndOfData)
-        {
-            string[]? fields;
-            try
-            {
-                fields = parser.ReadFields();
-            }
-            catch (MalformedLineException)
-            {
-                malformed++;
-                continue;
-            }
-
-            if (fields == null) continue;
-            totalRows++;
-            if (fields.Length <= maxColIndex) continue;
-
-            string estado = fields[colEstado].Trim();
-            string soc = fields[colSoc].Trim();
-            string fecha = fields[colFecha].Trim();
-
-            if (!estadoSet.Contains(estado)) continue;
-            if (socSet != null && !socSet.Contains(soc)) continue;
-            if (fechaFiltro != null && !string.Equals(fecha, fechaFiltro, StringComparison.OrdinalIgnoreCase)) continue;
-
-            matchedCount++;
-
-            if (maxCollect <= 0 || matchedRows.Count < maxCollect)
-            {
-                matchedRows.Add(new EmpleadoRowDto(estado, fields[colDoc].Trim(), soc, fecha,
-                    OptionalField(fields, colNombre), OptionalField(fields, colApellido)));
-            }
+            if (!estadoSet.Contains(row.Estado)) continue;
+            if (socSet != null && !socSet.Contains(row.Sociedad)) continue;
+            if (fechaFiltro != null && !string.Equals(row.FechaEvento, fechaFiltro, StringComparison.OrdinalIgnoreCase)) continue;
+            matched.Add(row);
         }
 
         sw.Stop();
-        return new FilterResult(totalRows, malformed, matchedCount, matchedRows, sw.ElapsedMilliseconds);
+        return new FilterResult(padron.TotalRows, padron.MalformedCount, matched.Count, matched, sw.ElapsedMilliseconds);
     }
 
     private static string OptionalField(string[] fields, int index) =>

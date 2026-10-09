@@ -6,7 +6,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace UsuariosRetirados.Server.Services.Ocupacion;
+namespace PWExtendedApp.Server.Services.Ocupacion;
 
 public record OcupacionFiltro(
     string? FechaDesde, string? FechaHasta, string? Empresa, string? Ciudad,
@@ -72,13 +72,15 @@ public class OcupacionService
 
     private readonly OcupacionStore _store;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<OcupacionService> _logger;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private int _dataVersion;
 
-    public OcupacionService(OcupacionStore store, IMemoryCache cache)
+    public OcupacionService(OcupacionStore store, IMemoryCache cache, ILogger<OcupacionService> logger)
     {
         _store = store;
         _cache = cache;
+        _logger = logger;
     }
 
     // ---------- Filtros SQL (db.build_where) ----------
@@ -373,11 +375,18 @@ public class OcupacionService
                 using var ms = new MemoryStream(content);
                 (registros, errores) = OcupacionIngest.Parse(ms, nombre);
             }
-            catch (Exception ex) when (ex is InvalidDataException or IOException or InvalidOperationException
-                                           or FormatException or ArgumentException)
+            catch (ExcelEstructuraException ex)
             {
+                // Mensajes propios (estructura del archivo): se muestran tal cual.
+                return new OcupacionCargaResultado(nombre, "error", Mensaje: ex.Message);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException
+                                           or FormatException or ArgumentException or NotSupportedException)
+            {
+                var code = ErrorReference.NewCode();
+                _logger.LogWarning(ex, "No se pudo leer el Excel {Nombre} (ref {Ref})", nombre, code);
                 return new OcupacionCargaResultado(nombre, "error",
-                    Mensaje: ex is InvalidDataException ? ex.Message : $"No se pudo leer el Excel: {ex.Message}");
+                    Mensaje: $"El archivo no es un Excel válido o está dañado (ref {code}).");
             }
 
             using var tx = conn.BeginTransaction();

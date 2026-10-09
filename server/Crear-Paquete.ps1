@@ -40,7 +40,7 @@ New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
 # 1. Publicar (framework-dependent, win-x64). nuget.org explicito por si la
 #    maquina solo tiene registrado el origen offline de Visual Studio.
 Write-Host '==> Publicando aplicacion...' -ForegroundColor Cyan
-& $dotnet publish (Join-Path $serverDir 'UsuariosRetirados.Server.csproj') `
+& $dotnet publish (Join-Path $serverDir 'PWExtendedApp.Server.csproj') `
     -c Release -r win-x64 --self-contained false -o (Join-Path $pkgDir 'app') `
     --source https://api.nuget.org/v3/index.json
 if ($LASTEXITCODE -ne 0) { throw 'Fallo dotnet publish.' }

@@ -24,7 +24,8 @@ TLS 1.3**.
 ```
 
 - URL: **https://localhost** (certificado autofirmado: aceptar la advertencia una vez).
-- Credenciales seed: `admin / Admin123!` y `operador1..5 / Operador123!` (**cambiarlas**).
+- Credenciales seed: `admin / Admin123!` y `operador1..5 / Operador123!`. Son temporales: la app pide
+  cambiarlas en el primer ingreso.
 
 Despliegue como servicio Windows: ver `server/README.md` e `Instalar-Servicio.ps1`.
 
@@ -39,7 +40,9 @@ Despliegue como servicio Windows: ver `server/README.md` e `Instalar-Servicio.ps
 | **Historial** | Cada proceso queda en SQLite con usuario, filtros, filas y descargas |
 | **Descargas** | DTU / XLSX / TSV desde el navegador, con auditoría |
 | **Sin Excel** | El XLSX se genera con ClosedXML en el servidor |
-| **Barrido único** | Cache de escaneo para no leer los ~165 MB dos veces |
+| **Padrón en memoria** | Se lee una vez (~12 s al arrancar); cada vista previa filtra en ~35 ms |
+| **Seguridad de acceso** | Cambio de contraseña obligatorio, bloqueo por intentos, límite por IP |
+| **Respaldos** | Copia diaria automática de las bases (y manual desde Administración) |
 | **Validación de estructura** | Compara el encabezado contra `server/app/estructura.json` |
 
 ---
@@ -64,7 +67,7 @@ empleados/
 ├── server/                         app web ASP.NET Core 10 (código)
 │   ├── Controllers/ Services/      API y lógica (Services/Ocupacion = módulo Ocupación Edificios)
 │   ├── Data/ Models/ DTOs/         EF Core (usuarios, historial, VIP) y contratos de la API
-│   ├── wwwroot/                    SPA: app.js (carcasa + DTU), ocupacion.js, api.js
+│   ├── wwwroot/                    SPA: shell.js + core.js + un módulo por archivo (dtu, ocupacion, admin)
 │   ├── app/estructura.json         estructura esperada del padrón
 │   ├── certs/                      PFX + contraseña (ignorados por git)
 │   ├── deploy/                     se copia al paquete: Instalar.cmd, Limpiar-Servicios.cmd, LEEME.txt
@@ -78,6 +81,7 @@ empleados/
 ├── salidas/                        archivos generados DTU/XLSX/TSV (ignorados por git)
 ├── paquete/                        paquetes generados (ignorados por git)
 ├── prerequisitos/                  instaladores .NET 10 (binarios ignorados)
+├── tests/                          pruebas automáticas (xUnit) con datos inventados
 ├── docs/                           documentación y presentación
 └── AGENTS.md                       guía para asistentes del repo
 ```

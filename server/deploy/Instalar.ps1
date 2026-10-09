@@ -7,7 +7,7 @@
     Se ejecuta desde la raiz del paquete generado por server\Crear-Paquete.ps1:
 
         <paquete>\
-          app\            aplicacion publicada (UsuariosRetirados.Server.exe)
+          app\            aplicacion publicada (PWExtendedApp.Server.exe)
           prerequisitos\  instalador del ASP.NET Core Runtime 10 (x64)
           certs\          PFX + password (se generan aqui si no existen)
           data\           usuarios_retirados.db (se crea sola) y prowatch.db
@@ -46,7 +46,7 @@ $root = $PSScriptRoot
 $appDir = Join-Path $root 'app'
 $certsDir = Join-Path $root 'certs'
 $dataDir = Join-Path $root 'data'
-$exePath = Join-Path $appDir 'UsuariosRetirados.Server.exe'
+$exePath = Join-Path $appDir 'PWExtendedApp.Server.exe'
 $LegacyServiceName = 'UsuariosRetiradosDTU'
 $serviceRegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
 

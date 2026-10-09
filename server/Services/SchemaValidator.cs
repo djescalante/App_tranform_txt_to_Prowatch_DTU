@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace UsuariosRetirados.Server.Services;
+namespace PWExtendedApp.Server.Services;
 
 public interface ISchemaValidator
 {

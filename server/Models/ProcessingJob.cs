@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UsuariosRetirados.Server.Models;
+namespace PWExtendedApp.Server.Models;
 
 public class ProcessingJob
 {

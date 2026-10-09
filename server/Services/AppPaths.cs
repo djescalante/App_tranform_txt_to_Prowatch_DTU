@@ -1,4 +1,4 @@
-namespace UsuariosRetirados.Server.Services;
+namespace PWExtendedApp.Server.Services;
 
 /// <summary>
 /// Resolves paths that live outside the app folder (estructura.json, salidas)

@@ -1,8 +1,8 @@
 using System.Text;
 using ClosedXML.Excel;
-using UsuariosRetirados.Server.DTOs;
+using PWExtendedApp.Server.DTOs;
 
-namespace UsuariosRetirados.Server.Services;
+namespace PWExtendedApp.Server.Services;
 
 public interface IExportService
 {
